@@ -33,14 +33,30 @@
   .title-row{display:flex; align-items:baseline; justify-content:space-between;}
   h1{font-size:19px; margin:0; font-weight:600; letter-spacing:-0.01em;}
   .date-sub{font-size:13px; color:var(--text-muted); margin-top:2px;}
-  .week-strip{display:flex; gap:4px; margin-top:14px;}
-  .week-pill{
-    flex:1; text-align:center; padding:7px 2px; border-radius:9px;
-    background:var(--panel); border:1px solid var(--border);
-    font-size:10px; color:var(--text-muted); cursor:pointer;
+  .week-nav{display:flex; align-items:stretch; gap:4px; margin-top:14px;}
+  .week-arrow{
+    width:24px; flex-shrink:0; background:transparent; border:none; color:var(--text-muted);
+    font-size:18px; padding:0; cursor:pointer;
   }
+  .week-strip{display:flex; gap:4px; flex:1; min-width:0;}
+  .week-pill{
+    flex:1; min-width:0; text-align:center; padding:6px 0; border-radius:9px;
+    background:var(--panel); border:1px solid var(--border);
+    color:var(--text-muted); cursor:pointer;
+  }
+  .week-pill .dow{font-size:10px;}
+  .week-pill .dom{font-size:14px; font-weight:600; margin-top:1px;}
+  .week-pill.is-today .dow{color:var(--accent); font-weight:600;}
   .week-pill.done{background:var(--success-soft); border-color:var(--success); color:var(--success);}
-  .week-pill.today{border-color:var(--accent); color:var(--accent);}
+  .week-pill.selected{border-color:var(--accent); color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent);}
+  .workout-strip{display:flex; gap:4px; margin-top:8px;}
+  .workout-pill{
+    flex:1; min-width:0; text-align:center; padding:7px 0; border-radius:9px;
+    background:transparent; border:1px solid var(--border);
+    font-size:11px; color:var(--text-muted); cursor:pointer; white-space:nowrap;
+  }
+  .workout-pill.logged{color:var(--success); border-color:var(--success);}
+  .workout-pill.selected{background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
 
   nav{display:flex; gap:5px; padding:14px 14px 0;}
   .tab{
@@ -139,6 +155,17 @@
   .hist-row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--text-muted);}
   .hist-row span:last-child{color:var(--text);}
 
+  .backup-actions{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px;}
+  .ghost-btn{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:10px;
+    padding:10px 4px; font-size:13px; cursor:pointer; width:100%;
+  }
+  .ghost-btn:active{opacity:0.85;}
+  .backup-text{
+    width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:9px;
+    padding:9px 10px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; resize:vertical; margin-bottom:6px;
+  }
+
   .empty-state{text-align:center; color:var(--text-muted); font-size:13.5px; padding:30px 10px;}
 
   .progress-select{margin-bottom:14px;}
@@ -176,7 +203,12 @@
     <h1>Training Log</h1>
     <div class="date-sub" id="todayLabel"></div>
   </div>
-  <div class="week-strip" id="weekStrip"></div>
+  <div class="week-nav">
+    <button class="week-arrow" id="prevWeek" aria-label="Previous week">‹</button>
+    <div class="week-strip" id="weekStrip"></div>
+    <button class="week-arrow" id="nextWeek" aria-label="Next week">›</button>
+  </div>
+  <div class="workout-strip" id="workoutStrip"></div>
 </header>
 
 <nav>
@@ -210,6 +242,18 @@
 
   <section id="tab-history" style="display:none;">
     <div class="card" id="historyCard"></div>
+    <div class="card" id="backupCard">
+      <div class="section-label">Backup</div>
+      <div class="backup-actions">
+        <button class="ghost-btn" id="exportBtn">Export file</button>
+        <button class="ghost-btn" id="copyBtn">Copy JSON</button>
+        <button class="ghost-btn" id="importBtn">Import file</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <textarea class="backup-text" id="backupText" rows="3" placeholder="…or paste a backup here"></textarea>
+      <button class="ghost-btn" id="importPasteBtn">Import pasted JSON</button>
+      <div class="saved-note" id="backupNote"></div>
+    </div>
   </section>
 
   <section id="tab-progress" style="display:none;">
@@ -303,34 +347,45 @@ const PROGRAM = {
 };
 
 const SESSION_ORDER = ["monday","wednesday","weekend","recovery","kettlebell","recreational"];
-const SESSION_SHORT = {monday:"Mon", wednesday:"Wed", weekend:"Wknd", recovery:"Rec", kettlebell:"KB", recreational:"Play"};
+const SESSION_SHORT = {monday:"Body A", wednesday:"Body B", weekend:"Body C", recovery:"Rec", kettlebell:"KB", recreational:"Play"};
+// Workout pre-selected for an empty day, indexed by getDay() (0 = Sun). Off days
+// (Tue/Thu/Fri) get the split session that most recently came before them.
+const DEFAULT_WORKOUT_BY_DOW = ["weekend","monday","monday","wednesday","wednesday","wednesday","weekend"];
+const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // ---------- Date helpers ----------
 function pad(n){return n.toString().padStart(2,"0");}
 function dateKey(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function addDays(d, n){
+  const x = new Date(d);
+  x.setDate(x.getDate() + n); // calendar math, safe across DST changes
+  return x;
+}
 function startOfWeek(d){
-  const day = d.getDay(); // 0 Sun ... 6 Sat
-  const diff = (day === 0 ? -6 : 1) - day; // Monday as start
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diff);
-  monday.setHours(0,0,0,0);
-  return monday;
+  const sunday = addDays(d, -d.getDay()); // Sunday as start
+  sunday.setHours(0,0,0,0);
+  return sunday;
 }
 function formatNice(d){
   return d.toLocaleDateString(undefined, {weekday:"long", month:"short", day:"numeric"});
 }
+function esc(v){
+  return String(v ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
 
 const today = new Date();
 let selectedDate = new Date(today);
+let viewWeekStart = startOfWeek(today);
 let allSessions = []; // {key, dateKey, sessionType, data}
 
 // ---------- Storage helpers ----------
 // Drop-in for the artifact-only window.storage API: same async methods and
 // return shapes ({key, value} / {keys}), same keys (session:YYYY-MM-DD_type),
-// values stored as the same JSON strings. Backed by localStorage; falls back to
-// window.storage only when localStorage is blocked (e.g. inside a sandboxed
-// Claude.ai artifact frame).
+// values stored as the same JSON strings. Inside a Claude.ai artifact the real
+// window.storage is used, so existing artifact data stays visible (and can be
+// exported); everywhere else it is backed by localStorage.
 const store = (()=>{
+  if(window.storage) return window.storage;
   function localStorageUsable(){
     try{
       const probe = "__storage_probe__";
@@ -340,7 +395,6 @@ const store = (()=>{
     }catch(e){ return false; }
   }
   if(!localStorageUsable()){
-    if(window.storage) return window.storage;
     // No persistence available: app still renders, saves report failure.
     return {
       async get(){ return null; },
@@ -376,6 +430,12 @@ const store = (()=>{
   };
 })();
 
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+function isSessionRecord(v){
+  return !!v && typeof v === "object" && typeof v.dateKey === "string" && DATE_KEY_RE.test(v.dateKey)
+    && typeof v.sessionType === "string" && v.sessionType !== "";
+}
+
 async function loadAllSessions(){
   try{
     const listRes = await store.list("session:");
@@ -386,6 +446,7 @@ async function loadAllSessions(){
         const r = await store.get(k);
         if(r && r.value){
           const parsed = JSON.parse(r.value);
+          if(!isSessionRecord(parsed)) continue;
           results.push({key:k, dateKey:parsed.dateKey, sessionType:parsed.sessionType, data:parsed});
         }
       }catch(e){ /* skip unreadable key */ }
@@ -405,67 +466,86 @@ function lastWeightFor(exId){
   return null;
 }
 
-// ---------- Rendering: header / week strip (doubles as the day picker) ----------
-function mostRecentDateForDays(dayNums){
-  for(let i=0;i<7;i++){
-    const d = new Date(today.getTime() - i*86400000);
-    if(dayNums.includes(d.getDay())) return d;
-  }
-  return new Date(today);
+// ---------- Rendering: header (day pills = daily log, workout pills = what was done) ----------
+function sessionsOn(dk){
+  return allSessions.filter(s=>s.dateKey===dk);
 }
-const SESSION_DAYNUMS = {monday:[1], wednesday:[3], weekend:[6,0], recovery:null, kettlebell:null, recreational:null};
+// A day with saved sessions opens on the first one logged; an empty day opens
+// on its scheduled workout.
+function defaultWorkoutFor(d){
+  const logged = new Set(sessionsOn(dateKey(d)).map(s=>s.sessionType));
+  return SESSION_ORDER.find(t=>logged.has(t)) || DEFAULT_WORKOUT_BY_DOW[d.getDay()];
+}
 
-function selectSession(type){
-  currentSessionType = type;
-  selectedDate = SESSION_DAYNUMS[type] ? mostRecentDateForDays(SESSION_DAYNUMS[type]) : new Date(today);
+function selectDay(d){
+  selectedDate = new Date(d);
+  viewWeekStart = startOfWeek(selectedDate);
+  currentSessionType = defaultWorkoutFor(selectedDate);
   hardcoreMode = false; // always reset to the default view when switching days
   renderHeader();
   renderTodayForm();
   switchTab("today");
 }
 
+function selectWorkout(type){
+  currentSessionType = type;
+  hardcoreMode = false;
+  renderHeader();
+  renderTodayForm();
+  switchTab("today");
+}
+
+function shiftWeek(n){
+  viewWeekStart = addDays(viewWeekStart, 7*n);
+  renderHeader();
+}
+
 function renderHeader(){
   document.getElementById("todayLabel").textContent = formatNice(today);
-  const wStart = startOfWeek(today);
+  const todayKey = dateKey(today);
+  const selKey = dateKey(selectedDate);
+
   const strip = document.getElementById("weekStrip");
   strip.innerHTML = "";
-  SESSION_ORDER.forEach((type)=>{
+  for(let i=0;i<7;i++){
+    const d = addDays(viewWeekStart, i);
+    const dk = dateKey(d);
     const pill = document.createElement("div");
     pill.className = "week-pill";
-    const doneThisWeek = allSessions.some(s=>{
-      const sd = new Date(s.dateKey+"T00:00:00");
-      return s.sessionType===type && sd >= wStart && sd < new Date(wStart.getTime()+7*86400000);
-    });
-    if(doneThisWeek) pill.classList.add("done");
-    if(currentSessionType===type) pill.classList.add("today");
-    pill.textContent = SESSION_SHORT[type] + (doneThisWeek ? " ✓" : "");
-    pill.addEventListener("click", ()=>selectSession(type));
+    pill.dataset.date = dk;
+    if(sessionsOn(dk).length) pill.classList.add("done");
+    if(dk===selKey) pill.classList.add("selected");
+    if(dk===todayKey) pill.classList.add("is-today");
+    pill.innerHTML = `<div class="dow">${DOW_SHORT[d.getDay()]}</div><div class="dom">${d.getDate()}</div>`;
+    pill.addEventListener("click", ()=>selectDay(d));
     strip.appendChild(pill);
+  }
+
+  const logged = new Set(sessionsOn(selKey).map(s=>s.sessionType));
+  const workouts = document.getElementById("workoutStrip");
+  workouts.innerHTML = "";
+  SESSION_ORDER.forEach((type)=>{
+    const pill = document.createElement("div");
+    pill.className = "workout-pill";
+    pill.dataset.type = type;
+    pill.title = PROGRAM[type].label;
+    if(logged.has(type)) pill.classList.add("logged");
+    if(currentSessionType===type) pill.classList.add("selected");
+    pill.textContent = SESSION_SHORT[type] + (logged.has(type) ? " ✓" : "");
+    pill.addEventListener("click", ()=>selectWorkout(type));
+    workouts.appendChild(pill);
   });
+
   const label = document.getElementById("loggingForLabel");
   if(label){
     const prog = PROGRAM[currentSessionType];
-    const isToday = dateKey(selectedDate) === dateKey(today);
-    label.textContent = `${prog.dayName} — ${prog.label} · ${isToday ? "today, " : ""}${formatNice(selectedDate)}`;
+    const isToday = selKey === todayKey;
+    label.textContent = `${prog.label} · ${isToday ? "today, " : ""}${formatNice(selectedDate)}`;
   }
 }
 
 // ---------- Today tab ----------
-// On an actual lift day, land on that day. On an off day (Tue/Thu/Fri), land on
-// whichever split session most recently happened, so there's always a real
-// workout showing instead of a bare recovery card.
-function initialLanding(){
-  const day = today.getDay();
-  if(day===1) return {type:"monday", date:new Date(today)};
-  if(day===3) return {type:"wednesday", date:new Date(today)};
-  if(day===6 || day===0) return {type:"weekend", date:new Date(today)};
-  const candidates = ["monday","wednesday","weekend"].map(t=>({t, d:mostRecentDateForDays(SESSION_DAYNUMS[t])}));
-  candidates.sort((a,b)=> b.d - a.d);
-  return {type:candidates[0].t, date:candidates[0].d};
-}
-const landing = initialLanding();
-let currentSessionType = landing.type;
-selectedDate = landing.date;
+let currentSessionType = DEFAULT_WORKOUT_BY_DOW[today.getDay()];
 let hardcoreMode = false;
 
 function existingSessionFor(type){
@@ -514,11 +594,11 @@ function renderTodayForm(){
       <div class="section-label">Recreational Activity</div>
       <div class="rec-field">
         <label class="field-label">What did you play?</label>
-        <input type="text" id="recActivity" placeholder="e.g. pickup basketball, soccer, tennis" value="${prevAct.name || ""}">
+        <input type="text" id="recActivity" placeholder="e.g. pickup basketball, soccer, tennis" value="${esc(prevAct.name)}">
       </div>
       <div class="rec-field">
         <label class="field-label">Duration (minutes)</label>
-        <input type="number" inputmode="decimal" id="recDuration" placeholder="60" value="${prevAct.duration!==undefined && prevAct.duration!==null ? prevAct.duration : ""}">
+        <input type="number" inputmode="decimal" id="recDuration" placeholder="60" value="${esc(prevAct.duration)}">
       </div>
       <div class="rec-field">
         <label class="field-label">Intensity</label>
@@ -547,7 +627,7 @@ function renderTodayForm(){
 
   exCard.innerHTML = `<div class="section-label">Exercises${hardcoreMode ? ' <span class="hc-badge">🔥 HARDCORE</span>' : ''}</div>`;
   prog.exercises.forEach(ex=>{
-    const prevLogged = existing ? (existing.data.exercises.find(e=>e.id===ex.id)||{}) : {};
+    const prevLogged = existing ? ((existing.data.exercises||[]).find(e=>e.id===ex.id)||{}) : {};
     const lastVal = prevLogged.weight!==undefined && prevLogged.weight!==null && prevLogged.weight!=="" ? prevLogged.weight : lastWeightFor(ex.id);
     let placeholder = lastVal !== null && lastVal !== undefined ? lastVal : (ex.start!==null ? ex.start : "");
     const displayReps = hardcoreMode ? bumpReps(ex.reps) : ex.reps;
@@ -558,10 +638,10 @@ function renderTodayForm(){
     row.innerHTML = `
       <div class="exercise-info">
         <div class="exercise-name">${ex.name}</div>
-        <div class="exercise-target">${displayReps}${lastVal!==null && lastVal!==undefined ? " · last: "+lastVal+(ex.unit==="sec"?" sec":" lb") : (ex.start!==null ? " · start ~"+ex.start+" lb" : "")}</div>
+        <div class="exercise-target">${displayReps}${lastVal!==null && lastVal!==undefined ? " · last: "+esc(lastVal)+(ex.unit==="sec"?" sec":" lb") : (ex.start!==null ? " · start ~"+ex.start+" lb" : "")}</div>
       </div>
       <div class="exercise-controls">
-        <input type="number" inputmode="decimal" class="weight-input" data-id="${ex.id}" placeholder="${placeholder}" value="${prevLogged.weight!==undefined && prevLogged.weight!==null ? prevLogged.weight : ""}">
+        <input type="number" inputmode="decimal" class="weight-input" data-id="${ex.id}" placeholder="${esc(placeholder)}" value="${esc(prevLogged.weight)}">
         <span class="unit-label">${ex.unit==="sec"?"sec":"lb"}</span>
         <label class="check-wrap">
           <input type="checkbox" class="done-check" data-id="${ex.id}" ${checked}>
@@ -632,7 +712,7 @@ async function saveToday(){
       dateKey: dk,
       dateDisplay: formatNice(selectedDate),
       sessionType: currentSessionType,
-      dayLabel: `${prog.dayName} — ${prog.label}`,
+      dayLabel: prog.label,
       hardcore: hardcoreMode,
       exercises,
       cardio,
@@ -668,24 +748,29 @@ function renderHistory(){
   allSessions.forEach((s, idx)=>{
     const d = s.data;
     const isRec = s.sessionType === "recreational";
-    const totalEx = d.exercises.length;
-    const doneEx = d.exercises.filter(e=>e.completed).length;
+    const exercises = Array.isArray(d.exercises) ? d.exercises : [];
+    const cardioDone = !!(d.cardio && d.cardio.completed);
+    const act = d.activity || {};
+    const hasDuration = act.duration!==null && act.duration!==undefined && act.duration!=="";
+    const totalEx = exercises.length;
+    const doneEx = exercises.filter(e=>e.completed).length;
     const item = document.createElement("div");
     item.className = "hist-item";
     const detailsId = `hist-details-${idx}`;
+    const recBits = [hasDuration ? `${esc(act.duration)} min` : "", esc(act.intensity)].filter(Boolean).join(" · ");
     const summaryHtml = isRec
-      ? `${d.activity ? d.activity.duration+" min · "+d.activity.intensity : ""}<br>${d.cardio.completed ? "✓ done" : "—"}`
-      : `${doneEx}/${totalEx} exercises<br>cardio ${d.cardio.completed ? "✓" : "—"}`;
+      ? `${recBits ? recBits+"<br>" : ""}${cardioDone ? "✓ done" : "—"}`
+      : `${doneEx}/${totalEx} exercises<br>cardio ${cardioDone ? "✓" : "—"}`;
     const detailsHtml = isRec
-      ? `<div class="hist-row"><span>Activity</span><span>${d.activity ? d.activity.name : "—"}</span></div>
-         <div class="hist-row"><span>Duration</span><span>${d.activity && d.activity.duration!==null ? d.activity.duration+" min" : "—"}</span></div>
-         <div class="hist-row"><span>Intensity</span><span>${d.activity ? d.activity.intensity : "—"}</span></div>`
-      : d.exercises.map(e=>`<div class="hist-row"><span>${e.name}${e.completed?" ✓":""}</span><span>${e.weight!==null && e.weight!==undefined ? e.weight : "—"}</span></div>`).join("");
+      ? `<div class="hist-row"><span>Activity</span><span>${act.name ? esc(act.name) : "—"}</span></div>
+         <div class="hist-row"><span>Duration</span><span>${hasDuration ? esc(act.duration)+" min" : "—"}</span></div>
+         <div class="hist-row"><span>Intensity</span><span>${act.intensity ? esc(act.intensity) : "—"}</span></div>`
+      : exercises.map(e=>`<div class="hist-row"><span>${esc(e.name)}${e.completed?" ✓":""}</span><span>${e.weight!==null && e.weight!==undefined ? esc(e.weight) : "—"}</span></div>`).join("");
     item.innerHTML = `
       <div class="hist-top" data-toggle="${detailsId}">
         <div>
-          <div class="hist-day">${d.dayLabel}${d.hardcore ? ' <span class="hc-badge">🔥</span>' : ''}</div>
-          <div class="hist-date">${d.dateDisplay}</div>
+          <div class="hist-day">${esc(d.dayLabel)}${d.hardcore ? ' <span class="hc-badge">🔥</span>' : ''}</div>
+          <div class="hist-date">${esc(d.dateDisplay)}</div>
         </div>
         <div class="hist-summary">${summaryHtml}</div>
       </div>
@@ -736,8 +821,9 @@ function renderChart(exId){
     .reverse()
     .map(s => {
       const match = (s.data.exercises||[]).find(e=>e.id===exId);
-      if(!match || match.weight===null || match.weight===undefined) return null;
-      return {date: s.dateKey, value: match.weight};
+      if(!match || match.weight===null || match.weight===undefined || match.weight==="") return null;
+      const value = Number(match.weight);
+      return Number.isFinite(value) ? {date: s.dateKey, value} : null;
     })
     .filter(Boolean);
 
@@ -768,16 +854,15 @@ function renderChart(exId){
 
 // ---------- Next Week preview ----------
 function renderNextWeek(){
-  const wStart = startOfWeek(today);
-  const nextMon = new Date(wStart.getTime() + 7*86400000);
-  const nextWed = new Date(nextMon.getTime() + 2*86400000);
-  const nextSat = new Date(nextMon.getTime() + 5*86400000);
-  const nextSun = new Date(nextMon.getTime() + 6*86400000);
+  const nextSun = addDays(startOfWeek(today), 7);
+  const nextMon = addDays(nextSun, 1);
+  const nextWed = addDays(nextSun, 3);
+  const nextSat = addDays(nextSun, 6);
 
   const blocks = [
     {type:"monday", date: nextMon},
     {type:"wednesday", date: nextWed},
-    {type:"weekend", date: null, label: `${formatShort(nextSat)} or ${formatShort(nextSun)}`},
+    {type:"weekend", date: null, label: `${formatShort(nextSun)} or ${formatShort(nextSat)}`},
     {type:"recovery", date: null, label: "Any open day"}
   ];
 
@@ -884,8 +969,95 @@ document.querySelectorAll(".tab").forEach(tab=>{
 });
 
 // ---------- Init ----------
+// ---------- Backup: export / import ----------
+const BACKUP_FORMAT = "training-log-backup";
+const SESSION_KEY_RE = /^session:(\d{4}-\d{2}-\d{2})_(.+)$/;
+
+function setBackupNote(msg, isError){
+  const note = document.getElementById("backupNote");
+  note.textContent = msg;
+  note.style.color = isError ? "var(--fire)" : "";
+}
+
+async function buildBackup(){
+  await loadAllSessions();
+  const sessions = {};
+  allSessions.slice().reverse().forEach(s=>{ sessions[s.key] = s.data; });
+  return {format: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), sessions};
+}
+
+async function exportFile(){
+  const backup = await buildBackup();
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `training-log-backup-${dateKey(today)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  const n = Object.keys(backup.sessions).length;
+  setBackupNote(`Exported ${n} session${n===1?"":"s"}. No file? Use Copy JSON instead.`);
+}
+
+async function copyBackup(){
+  const backup = await buildBackup();
+  const json = JSON.stringify(backup);
+  const n = Object.keys(backup.sessions).length;
+  try{
+    await navigator.clipboard.writeText(json);
+    setBackupNote(`Copied ${n} session${n===1?"":"s"} to the clipboard.`);
+  }catch(e){
+    // Clipboard is often blocked in sandboxed frames: hand over the text instead.
+    const box = document.getElementById("backupText");
+    box.value = json;
+    box.focus();
+    box.select();
+    setBackupNote("Clipboard blocked here — the backup is in the box above, select all and copy it.");
+  }
+}
+
+// Accepts this app's backup file, or a bare {"session:…": value} map where each
+// value is a session object or its JSON string. Newer savedAt wins on conflict.
+async function importBackup(text){
+  let parsed;
+  try{ parsed = JSON.parse(text); }
+  catch(e){ setBackupNote("That isn't valid JSON — nothing imported.", true); return; }
+  const map = parsed && parsed.format===BACKUP_FORMAT ? parsed.sessions : parsed;
+  if(!map || typeof map !== "object" || Array.isArray(map)){
+    setBackupNote("No sessions found in that backup.", true);
+    return;
+  }
+  let added = 0, updated = 0, kept = 0, invalid = 0, failed = 0;
+  for(const [key, raw] of Object.entries(map)){
+    let rec = raw;
+    if(typeof rec === "string"){ try{ rec = JSON.parse(rec); }catch(e){ rec = null; } }
+    const m = SESSION_KEY_RE.exec(key);
+    if(!m || !isSessionRecord(rec) || rec.dateKey!==m[1] || rec.sessionType!==m[2]){ invalid++; continue; }
+    const current = allSessions.find(s=>s.key===key);
+    if(current && current.data.savedAt && rec.savedAt && String(current.data.savedAt) >= String(rec.savedAt)){ kept++; continue; }
+    const res = await store.set(key, JSON.stringify(rec));
+    if(!res){ failed++; continue; }
+    if(current) updated++; else added++;
+  }
+  await loadAllSessions();
+  currentSessionType = defaultWorkoutFor(selectedDate);
+  hardcoreMode = false;
+  renderHeader();
+  renderTodayForm();
+  renderHistory();
+  populateProgressSelect();
+  const parts = [`${added} added`, `${updated} updated`];
+  if(kept) parts.push(`${kept} kept (local copy same or newer)`);
+  if(invalid) parts.push(`${invalid} skipped (invalid)`);
+  if(failed) parts.push(`${failed} failed to save`);
+  setBackupNote(`Import done: ${parts.join(", ")}.`, failed>0 || (added+updated===0 && invalid>0));
+}
+
 async function init(){
   await loadAllSessions();
+  currentSessionType = defaultWorkoutFor(selectedDate);
   hardcoreMode = false;
   renderTodayForm();
   renderHeader();
@@ -894,6 +1066,22 @@ async function init(){
   renderHistory();
   populateProgressSelect();
   document.getElementById("saveBtn").addEventListener("click", saveToday);
+  document.getElementById("prevWeek").addEventListener("click", ()=>shiftWeek(-1));
+  document.getElementById("nextWeek").addEventListener("click", ()=>shiftWeek(1));
+  document.getElementById("exportBtn").addEventListener("click", exportFile);
+  document.getElementById("copyBtn").addEventListener("click", copyBackup);
+  document.getElementById("importBtn").addEventListener("click", ()=>document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", async (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    await importBackup(await file.text());
+    e.target.value = "";
+  });
+  document.getElementById("importPasteBtn").addEventListener("click", ()=>{
+    const text = document.getElementById("backupText").value.trim();
+    if(!text){ setBackupNote("Paste a backup into the box first.", true); return; }
+    importBackup(text);
+  });
   document.getElementById("progressSelect").addEventListener("change", (e)=>renderChart(e.target.value));
   document.getElementById("hardcoreToggle").addEventListener("click", ()=>{
     hardcoreMode = !hardcoreMode;
