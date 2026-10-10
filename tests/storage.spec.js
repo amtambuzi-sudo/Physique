@@ -75,7 +75,7 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
   await expect(page.locator(".nw-date").nth(1)).toHaveText("Wednesday, Oct 14");
   await expect(page.locator(".nw-date").nth(2)).toHaveText("Sun, Oct 11 or Sat, Oct 17");
   await tab(page, "guide").click();
-  await expect(page.locator(".guide-row")).toHaveCount(24);
+  await expect(page.locator(".guide-row")).toHaveCount(26);
   await tab(page, "history").click();
   await expect(page.locator(".empty-state")).toBeVisible();
   await expect(page.locator("#backupCard")).toBeVisible();
