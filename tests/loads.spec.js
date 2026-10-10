@@ -22,7 +22,7 @@ test("every suggested weight, normal and Hardcore, exists for its equipment", as
 
   const program = await page.evaluate(() =>
     Object.values(PROGRAM).flatMap((p) => p.exercises || []).map((e) => ({ ...e })));
-  expect(program).toHaveLength(32);
+  expect(program).toHaveLength(40);
 
   for (const type of ["monday", "wednesday", "weekend", "recovery", "kettlebell"]) {
     await page.locator("#workoutSelect").selectOption(type);
@@ -61,7 +61,10 @@ test("Hardcore adds a set to sets×reps only; timed flows keep their length", as
   await page.goto(APP_URL);
   await page.locator("#workoutSelect").selectOption("recovery");
   await expect(page.locator("#hardcoreToggle")).toBeHidden(); // nothing to push on a recovery flow
-  await expect(page.locator(".exercise-target")).toHaveText(["10 min"]);
+  await expect(page.locator(".exercise-target")).toHaveText([
+    "10 slow reps", "5 / side", "8 / side", "45 sec / side", "45 sec / side", "45 sec / side",
+    "8 / side", "10 slow reps", "60 sec, breathe slowly",
+  ]);
   await page.locator("#workoutSelect").selectOption("kettlebell");
   await page.locator("#hardcoreToggle").click();
   const t = (id) => page.locator(".exercise-item", { has: page.locator(`.done-check[data-id="${id}"]`) }).locator(".exercise-target");

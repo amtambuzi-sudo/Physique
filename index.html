@@ -157,8 +157,8 @@
 
   .section-label{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin:4px 0 8px;}
   .cardio-box{background:var(--panel-2); border-radius:10px; padding:10px 12px; margin-top:4px;}
-  .cardio-title{font-size:14px; font-weight:500;}
-  .cardio-detail{font-size:12.5px; color:var(--text-muted); margin-top:3px; line-height:1.4;}
+  #cardioSelect{padding:9px 32px 9px 12px; font-size:14px; font-weight:500;}
+  .cardio-detail{font-size:12.5px; color:var(--text-muted); margin-top:8px; line-height:1.4;}
   .cardio-check-row{display:flex; align-items:center; justify-content:space-between; margin-top:8px;}
 
   .save-btn{
@@ -243,7 +243,6 @@
   .guide-icon-wrap svg{width:38px; height:38px; stroke:var(--accent);}
   .guide-info{flex:1; min-width:0;}
   .guide-name{font-size:14px; font-weight:600;}
-  .guide-days{font-size:10.5px; color:var(--accent); margin:1px 0 3px;}
   .guide-works{font-size:11.5px; color:var(--text); margin-bottom:2px;}
   .guide-cue{font-size:12.5px; color:var(--text-muted); line-height:1.4;}
 </style>
@@ -327,7 +326,7 @@
 
 <script>
 // Bump on every change that ships: the update check compares it with the live page.
-const APP_VERSION = "2026-10-10.3";
+const APP_VERSION = "2026-10-10.4";
 const ACCENT = "#f0a83c";
 // ---------- Program definition ----------
 const PROGRAM = {
@@ -378,7 +377,15 @@ const PROGRAM = {
     label: "Active Recovery",
     dayName: "Flex day",
     exercises: [
-      {id:"r1", name:"Mobility / stretch flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
+      {id:"r2", name:"Cat-Cow", reps:"10 slow reps", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r3", name:"World's Greatest Stretch", reps:"5 / side", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r4", name:"90/90 Hip Switch", reps:"8 / side", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r5", name:"Half-Kneeling Hip Flexor Stretch", reps:"45 sec / side", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r6", name:"Figure-4 Glute Stretch", reps:"45 sec / side", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r7", name:"Supine Hamstring Stretch", reps:"45 sec / side", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r8", name:"Thoracic Open Book", reps:"8 / side", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r9", name:"Wall Slides", reps:"10 slow reps", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"r10", name:"Child's Pose", reps:"60 sec, breathe slowly", start:null, unit:"sec", equip:"bodyweight"}
     ],
     cardio: {name:"Easy bike or walk", detail:"20–30 min, level 1 — easy conversational pace, no intensity"}
   },
@@ -394,9 +401,9 @@ const PROGRAM = {
       {id:"k6", name:"KB Reverse Lunge", reps:"3 × 10/leg", start:20, unit:"lb", equip:"kb"},
       {id:"k7", name:"KB Halo", reps:"2 × 10/direction", start:10, unit:"lb", equip:"kb"},
       {id:"k8", name:"Plank", reps:"3 × 30–45 sec", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"k9", name:"Mat stretch / mobility flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
+      {id:"k9", name:"Mat cool-down flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
     ],
-    cardio: {name:"Optional finisher", detail:"5–10 min light cardio if the gym has it, or skip — the swings and circuit pace already cover conditioning."}
+    cardio: {name:"Jump rope / jacks intervals", detail:"6 rounds: 40 sec on, 20 sec easy. Jumping jacks or step-jacks if there's no rope."}
   },
   rest: {
     label: "Rest day",
@@ -410,6 +417,24 @@ const PROGRAM = {
     cardio: {name:"Recreational activity", detail:"Swapped in for a lift day — log what you played instead."}
   }
 };
+
+// Every finisher you can pick on a lift or recovery day. Each workout's own
+// cardio (PROGRAM[type].cardio) is the default selection.
+const CARDIO_OPTIONS = [
+  {name:"Treadmill HIIT finisher", detail:"6–8 rounds: 30 sec fast/incline, 90 sec walk recovery (~12 min total)"},
+  {name:"Steady-state bike", detail:"15–20 min, level 1–3 — your comfort zone, build time before intensity"},
+  {name:"Run/walk intervals (treadmill)", detail:"Start 1 min run / 1 min walk × 8 (16 min). Add a run interval every 1–2 weeks as it feels manageable."},
+  {name:"Incline treadmill walk", detail:"12–15 min at 8–12% incline, 2.5–3.2 mph. Don't hold the rails."},
+  {name:"Rower", detail:"10–15 min steady at ~22 strokes/min: push with legs first, then lean back, then pull."},
+  {name:"Stair climber", detail:"10–12 min at a pace you can hold; light hands on the rails, stand tall."},
+  {name:"Elliptical", detail:"12–15 min, moderate resistance; push and pull the handles."},
+  {name:"Jump rope / jacks intervals", detail:"6 rounds: 40 sec on, 20 sec easy. Jumping jacks or step-jacks if there's no rope."},
+  {name:"Easy bike or walk", detail:"20–30 min, level 1 — easy conversational pace, no intensity"}
+];
+function cardioDetail(name){
+  const opt = CARDIO_OPTIONS.find(o=>o.name===name);
+  return opt ? opt.detail : "";
+}
 
 const SESSION_ORDER = ["monday","wednesday","weekend","recovery","rest","kettlebell","recreational"];
 // Full-body split, in order: A → B → C.
@@ -816,11 +841,17 @@ function renderTodayForm(){
   });
 
   const prevCardio = existing ? existing.data.cardio || {} : {};
+  const chosen = prevCardio.name || prog.cardio.name;
+  // A saved finisher that's no longer in the list still shows as itself.
+  const options = CARDIO_OPTIONS.some(o=>o.name===chosen) ? CARDIO_OPTIONS : [{name:chosen, detail:""}, ...CARDIO_OPTIONS];
   cardioCard.innerHTML = `
     <div class="section-label">Cardio finisher</div>
     <div class="cardio-box">
-      <div class="cardio-title">${prog.cardio.name}</div>
-      <div class="cardio-detail">${prog.cardio.detail}${hardcoreMode ? '<br><b style="color:var(--fire)">🔥 Hardcore add-on:</b> tack on 5 extra minutes, or bump pace/incline/resistance one notch.' : ''}</div>
+      <div class="select-wrap">
+        <select id="cardioSelect" aria-label="Cardio finisher">${options.map(o=>
+          `<option value="${esc(o.name)}"${o.name===chosen ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select>
+      </div>
+      <div class="cardio-detail" id="cardioDetail"></div>
       <div class="cardio-check-row">
         <label class="field-label" style="margin:0;">Completed</label>
         <label class="check-wrap">
@@ -830,7 +861,15 @@ function renderTodayForm(){
       </div>
     </div>
   `;
+  renderCardioDetail();
   document.getElementById("savedNote").textContent = existing ? "Loaded saved log for this day — edit and re-save anytime." : "";
+}
+
+function renderCardioDetail(){
+  const sel = document.getElementById("cardioSelect");
+  if(!sel) return;
+  document.getElementById("cardioDetail").innerHTML = esc(cardioDetail(sel.value)) +
+    (hardcoreMode ? '<br><b style="color:var(--fire)">🔥 Hardcore add-on:</b> tack on 5 extra minutes, or bump pace/incline/resistance one notch.' : '');
 }
 
 async function saveToday(){
@@ -882,7 +921,7 @@ async function saveToday(){
       };
     });
     const cardio = {
-      name: prog.cardio.name,
+      name: document.getElementById("cardioSelect").value,
       completed: document.getElementById("cardioCheck").checked
     };
     sessionObj = {
@@ -1100,63 +1139,80 @@ function formatShort(d){
 
 // ---------- Form Guide ----------
 const GUIDE = [
-  {name:"Goblet Squat (DB)", works:"Quads, glutes, core", days:["Mon"], cue:"Hold the weight at chest height, hips back and down, knees track over toes, chest stays tall.",
+  {name:"Goblet Squat (DB)", works:"Quads, glutes, core", cue:"Hold the weight at chest height, hips back and down, knees track over toes, chest stays tall.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L31 28"/><path d="M31 15 L26 24 M31 15 L36 24"/><rect x="26" y="22" width="12" height="6" rx="1"/><path d="M31 28 L22 40 L24 56 M31 28 L40 40 L38 56"/><path d="M20 56 L28 56 M34 56 L42 56"/>`},
-  {name:"Chest Press (machine)", works:"Chest, front shoulders, triceps", days:["Mon","Sat/Sun"], cue:"Handles at chest height, elbows around 45°, press straight out without locking elbows hard.",
+  {name:"Chest Press (machine)", works:"Chest, front shoulders, triceps", cue:"Handles at chest height, elbows around 45°, press straight out without locking elbows hard.",
    icon:`<circle cx="26" cy="9" r="4"/><path d="M26 13 L26 34"/><path d="M26 34 L18 44 L16 56"/><path d="M26 34 L34 40 L32 56"/><path d="M26 17 L44 15 M26 21 L44 23"/>`},
-  {name:"Lat Pulldown (machine)", works:"Lats, upper back, biceps", days:["Mon","Sat/Sun"], cue:"Slight lean back, pull the bar to your upper chest leading with your elbows, control the return.",
+  {name:"Lat Pulldown (machine)", works:"Lats, upper back, biceps", cue:"Slight lean back, pull the bar to your upper chest leading with your elbows, control the return.",
    icon:`<circle cx="32" cy="10" r="4"/><path d="M32 14 L33 34"/><path d="M33 34 L26 44 L24 56"/><path d="M33 34 L40 44 L42 56"/><path d="M16 4 L48 4"/><path d="M16 4 L24 18 M48 4 L40 18"/>`},
-  {name:"Leg Extension", works:"Quads", days:["Mon","Sat/Sun"], cue:"Back flat against the pad, extend to a full knee lock, pause, then lower slow and controlled.",
+  {name:"Leg Extension", works:"Quads", cue:"Back flat against the pad, extend to a full knee lock, pause, then lower slow and controlled.",
    icon:`<circle cx="20" cy="12" r="4"/><path d="M20 16 L20 32"/><path d="M20 32 L36 34"/><path d="M36 34 L52 26"/><path d="M20 20 L12 26"/>`},
-  {name:"Leg Curl (reverse leg extension)", works:"Hamstrings", days:["Mon","Sat/Sun"], cue:"Pad against your ankles, curl heels toward glutes, keep hips pressed into the bench.",
+  {name:"Leg Curl (reverse leg extension)", works:"Hamstrings", cue:"Pad against your ankles, curl heels toward glutes, keep hips pressed into the bench.",
    icon:`<circle cx="12" cy="30" r="4"/><path d="M16 30 L46 30"/><path d="M16 34 L16 42"/><path d="M46 30 L54 18"/>`},
-  {name:"DB Hip Thrust / Glute Bridge", works:"Glutes, hamstrings", days:["Mon"], cue:"Shoulders on the bench (or floor for the bridge), drive hips up by squeezing glutes, avoid overarching your lower back at the top.",
+  {name:"DB Hip Thrust / Glute Bridge", works:"Glutes, hamstrings", cue:"Shoulders on the bench (or floor for the bridge), drive hips up by squeezing glutes, avoid overarching your lower back at the top.",
    icon:`<circle cx="8" cy="36" r="4"/><path d="M12 38 L32 26 L46 40"/><path d="M46 40 L46 54"/><rect x="27" y="21" width="10" height="6" rx="1"/>`},
-  {name:"DB Romanian Deadlift", works:"Hamstrings, glutes, lower back", days:["Mon"], cue:"Soft knees, hinge at the hips, weights stay close to your legs, back flat, feel it in the hamstrings.",
+  {name:"DB Romanian Deadlift", works:"Hamstrings, glutes, lower back", cue:"Soft knees, hinge at the hips, weights stay close to your legs, back flat, feel it in the hamstrings.",
    icon:`<circle cx="28" cy="10" r="4"/><path d="M28 14 L36 30"/><path d="M36 30 L32 56 M36 30 L44 56"/><path d="M28 17 L26 40"/>`},
-  {name:"DB Reverse Lunge", works:"Glutes, quads", days:["Wed"], cue:"Step back, drop the back knee toward the floor, front shin stays vertical, drive through the front heel.",
+  {name:"DB Reverse Lunge", works:"Glutes, quads", cue:"Step back, drop the back knee toward the floor, front shin stays vertical, drive through the front heel.",
    icon:`<circle cx="26" cy="10" r="4"/><path d="M26 14 L27 30"/><path d="M27 30 L20 42 L18 56"/><path d="M27 30 L38 38 L46 54"/><path d="M27 17 L24 28 M27 17 L30 28"/>`},
-  {name:"DB Shoulder Press", works:"Shoulders, triceps", days:["Wed"], cue:"Weights at shoulder height, press straight overhead without flaring your ribs or arching your back.",
+  {name:"DB Shoulder Press", works:"Shoulders, triceps", cue:"Weights at shoulder height, press straight overhead without flaring your ribs or arching your back.",
    icon:`<circle cx="32" cy="10" r="4"/><path d="M32 14 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/><path d="M32 16 L24 2 M32 16 L40 2"/>`},
-  {name:"Single-Arm Cable Row", works:"Lats, mid back, rear shoulders", days:["Wed"], cue:"Square your shoulders, pull the elbow back past your torso, squeeze the shoulder blade, control the release.",
+  {name:"Single-Arm Cable Row", works:"Lats, mid back, rear shoulders", cue:"Square your shoulders, pull the elbow back past your torso, squeeze the shoulder blade, control the release.",
    icon:`<circle cx="30" cy="10" r="4"/><path d="M30 14 L31 34"/><path d="M31 34 L26 56 M31 34 L36 56"/><path d="M30 18 L18 22 L12 18"/>`},
-  {name:"Cable Face Pull", works:"Rear shoulders, upper back", days:["Wed"], cue:"Pull the rope toward your face with elbows high and wide, squeeze your shoulder blades together at the back.",
+  {name:"Cable Face Pull", works:"Rear shoulders, upper back", cue:"Pull the rope toward your face with elbows high and wide, squeeze your shoulder blades together at the back.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/><path d="M32 16 L18 10 M18 10 L26 16 M32 16 L46 10 M46 10 L38 16"/>`},
-  {name:"Cable Triceps Pushdown", works:"Triceps", days:["Wed"], cue:"Elbows pinned at your sides, extend the forearms fully down, no swinging with your shoulders.",
+  {name:"Cable Triceps Pushdown", works:"Triceps", cue:"Elbows pinned at your sides, extend the forearms fully down, no swinging with your shoulders.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/><path d="M32 16 L32 24 L32 36"/>`},
-  {name:"DB Overhead Triceps Extension", works:"Triceps (long head)", days:["Wed"], cue:"Elbows pointed forward and close to your ears, lower the weight behind your head, extend fully without flaring elbows out.",
+  {name:"DB Overhead Triceps Extension", works:"Triceps (long head)", cue:"Elbows pointed forward and close to your ears, lower the weight behind your head, extend fully without flaring elbows out.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/><path d="M32 16 L26 4 L30 12"/>`},
-  {name:"DB Bicep Curl", works:"Biceps", days:["Wed"], cue:"Elbows stay at your sides, curl without swinging, squeeze at the top, lower with full control.",
+  {name:"DB Bicep Curl", works:"Biceps", cue:"Elbows stay at your sides, curl without swinging, squeeze at the top, lower with full control.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/><path d="M32 16 L30 26 L24 18"/>`},
-  {name:"Plank", works:"Core, shoulders, glutes", days:["Wed","KB"], cue:"Forearms under shoulders, one straight line from head to heels, ribs down, glutes squeezed.",
+  {name:"Plank", works:"Core, shoulders, glutes", cue:"Forearms under shoulders, one straight line from head to heels, ribs down, glutes squeezed.",
    icon:`<circle cx="10" cy="32" r="4"/><path d="M14 32 L50 32"/><path d="M18 32 L18 44"/><path d="M50 32 L58 32"/>`},
-  {name:"DB Lateral Raise", works:"Side shoulders", days:["Sat/Sun"], cue:"Slight bend in the elbows, raise to shoulder height, lead with the elbows rather than the hands.",
+  {name:"DB Lateral Raise", works:"Side shoulders", cue:"Slight bend in the elbows, raise to shoulder height, lead with the elbows rather than the hands.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/><path d="M32 16 L14 14 M32 16 L50 14"/>`},
-  {name:"Cable Glute Kickback", works:"Glutes", days:["Sat/Sun"], cue:"Ankle cuff on, hinge slightly forward, kick the leg straight back and squeeze the glute — don't lean back to fake the range.",
+  {name:"Cable Glute Kickback", works:"Glutes", cue:"Ankle cuff on, hinge slightly forward, kick the leg straight back and squeeze the glute — don't lean back to fake the range.",
    icon:`<circle cx="20" cy="10" r="4"/><path d="M20 14 L20 32"/><path d="M20 32 L18 54"/><path d="M20 32 L34 36 L46 30"/><path d="M20 18 L8 22"/>`},
-  {name:"KB Goblet Squat", works:"Quads, glutes, core", days:["KB"], cue:"Hold the kettlebell by the horns at chest height, hips back and down, knees track over toes.",
+  {name:"KB Goblet Squat", works:"Quads, glutes, core", cue:"Hold the kettlebell by the horns at chest height, hips back and down, knees track over toes.",
    icon:`<circle cx="32" cy="9" r="4"/><path d="M32 13 L31 28"/><path d="M31 15 L26 24 M31 15 L36 24"/><rect x="27" y="22" width="10" height="6" rx="1"/><path d="M31 28 L22 40 L24 56 M31 28 L40 40 L38 56"/>`},
-  {name:"KB Two-Hand Swing", works:"Glutes, hamstrings, back + conditioning", days:["KB"], cue:"Hinge at the hips, hike the bell back between your legs, then snap your hips forward to drive it to chest height — this is a hip drive, not a shoulder lift.",
+  {name:"KB Two-Hand Swing", works:"Glutes, hamstrings, back + conditioning", cue:"Hinge at the hips, hike the bell back between your legs, then snap your hips forward to drive it to chest height — this is a hip drive, not a shoulder lift.",
    icon:`<circle cx="26" cy="11" r="4"/><path d="M26 15 L34 30"/><path d="M34 30 L30 56 M34 30 L42 54"/><path d="M26 18 L20 34"/>`},
-  {name:"KB Single-Arm Row", works:"Lats, mid back", days:["KB"], cue:"Hinge forward with a flat back, pull the kettlebell to your hip leading with the elbow, squeeze at the top.",
+  {name:"KB Single-Arm Row", works:"Lats, mid back", cue:"Hinge forward with a flat back, pull the kettlebell to your hip leading with the elbow, squeeze at the top.",
    icon:`<circle cx="26" cy="12" r="4"/><path d="M26 16 L32 30"/><path d="M32 30 L28 56 M32 30 L38 54"/><path d="M26 20 L16 26 L12 22"/>`},
-  {name:"KB Single-Arm Overhead Press", works:"Shoulders, triceps, core", days:["KB"], cue:"Start racked against your forearm, press straight overhead, ribs down, avoid leaning back to launch it.",
+  {name:"KB Single-Arm Overhead Press", works:"Shoulders, triceps, core", cue:"Start racked against your forearm, press straight overhead, ribs down, avoid leaning back to launch it.",
    icon:`<circle cx="30" cy="10" r="4"/><path d="M30 14 L30 34"/><path d="M30 34 L25 56 M30 34 L35 56"/><path d="M30 17 L24 4"/>`},
-  {name:"KB Romanian Deadlift", works:"Hamstrings, glutes", days:["KB"], cue:"Soft knees, hinge the hips back, kettlebell stays close to your legs, feel the stretch through the hamstrings.",
+  {name:"KB Romanian Deadlift", works:"Hamstrings, glutes", cue:"Soft knees, hinge the hips back, kettlebell stays close to your legs, feel the stretch through the hamstrings.",
    icon:`<circle cx="28" cy="10" r="4"/><path d="M28 14 L36 30"/><path d="M36 30 L32 56 M36 30 L44 56"/><path d="M28 17 L26 40"/>`},
-  {name:"KB Reverse Lunge", works:"Glutes, quads", days:["KB"], cue:"Hold the bell at chest or by your side, step back, drop the back knee toward the floor, front shin stays vertical.",
+  {name:"KB Reverse Lunge", works:"Glutes, quads", cue:"Hold the bell at chest or by your side, step back, drop the back knee toward the floor, front shin stays vertical.",
    icon:`<circle cx="26" cy="10" r="4"/><path d="M26 14 L27 30"/><path d="M27 30 L20 42 L18 56"/><path d="M27 30 L38 38 L46 54"/>`},
-  {name:"KB Halo", works:"Shoulders, core", days:["KB"], cue:"Hold the bell by the horns at chest height, circle it slowly around your head, keep your core braced and ribs down.",
+  {name:"KB Halo", works:"Shoulders, core", cue:"Hold the bell by the horns at chest height, circle it slowly around your head, keep your core braced and ribs down.",
    icon:`<circle cx="32" cy="14" r="10"/><path d="M32 26 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/>`},
-  {name:"DB Romanian / Sumo Deadlift", works:"Glutes, hamstrings, inner thighs", days:["Sat/Sun"], cue:"Romanian: feet hip-width, hinge back with a flat back. Sumo: wide stance, toes out, one dumbbell between your legs, chest up. Either way, stand tall by squeezing your glutes.",
+  {name:"DB Romanian / Sumo Deadlift", works:"Glutes, hamstrings, inner thighs", cue:"Romanian: feet hip-width, hinge back with a flat back. Sumo: wide stance, toes out, one dumbbell between your legs, chest up. Either way, stand tall by squeezing your glutes.",
    icon:`<circle cx="32" cy="10" r="4"/><path d="M32 14 L32 32"/><path d="M32 32 L20 44 L16 56 M32 32 L44 44 L48 56"/><path d="M32 18 L32 40"/><rect x="28" y="40" width="8" height="5" rx="1"/>`},
-  {name:"Mobility / stretch flow", works:"Hips, spine, shoulders (recovery)", days:["Rec","KB"], cue:"Move slowly through hip openers, cat-cow, thoracic rotations and a hamstring stretch, about a minute each. Breathe and ease into range, never force it.",
-   icon:`<circle cx="28" cy="12" r="4"/><path d="M28 16 L30 32"/><path d="M30 32 L20 44 L22 56 M30 32 L44 42 L52 56"/><path d="M28 19 L38 6"/><path d="M28 21 L20 28"/>`}
+  {name:"Cat-Cow", works:"Spine, upper and lower back", cue:"On hands and knees. Inhale, drop the belly and lift the chest (cow); exhale, round the back and tuck the chin (cat). Move one vertebra at a time.",
+   icon:`<circle cx="12" cy="28" r="4"/><path d="M16 30 Q32 16 48 30"/><path d="M18 31 L18 50 M46 30 L46 50"/><path d="M4 50 L60 50"/>`},
+  {name:"World's Greatest Stretch", works:"Hip flexors, hamstrings, upper back", cue:"Big lunge forward, back knee off the floor. Put the inside hand down by the front foot, then rotate and reach the other arm to the ceiling. Hold 2–3 breaths, switch.",
+   icon:`<circle cx="30" cy="12" r="4"/><path d="M30 16 L34 32"/><path d="M34 32 L46 40 L46 54 M34 32 L18 46 L8 52"/><path d="M31 21 L40 44 M31 21 L24 4"/>`},
+  {name:"90/90 Hip Switch", works:"Hip rotation (inner + outer)", cue:"Sit with both knees bent to 90°, one leg in front and one to the side. Keeping your chest tall, rotate both knees over to the other side. Go slow; use your hands behind you if needed.",
+   icon:`<circle cx="32" cy="12" r="4"/><path d="M32 16 L32 36"/><path d="M32 36 L48 36 L48 50 M32 36 L18 44 L8 40"/><path d="M32 22 L22 30"/>`},
+  {name:"Half-Kneeling Hip Flexor Stretch", works:"Hip flexors, quads", cue:"Kneel on one knee, other foot forward. Squeeze the glute of the down leg and tuck the pelvis; shift forward just until you feel the front of the hip stretch. Reach the same-side arm overhead.",
+   icon:`<circle cx="28" cy="10" r="4"/><path d="M28 14 L30 32"/><path d="M30 32 L44 34 L44 52 M30 32 L22 50 L8 52"/><path d="M28 18 L30 2"/>`},
+  {name:"Figure-4 Glute Stretch", works:"Glutes, outer hip", cue:"Lie on your back, cross one ankle over the opposite knee, then pull that thigh toward your chest. Keep the crossed foot flexed and your head down.",
+   icon:`<circle cx="8" cy="40" r="4"/><path d="M12 40 L34 40"/><path d="M34 40 L44 24 L50 34 M34 40 L46 30 L54 40"/><path d="M16 40 L40 28"/>`},
+  {name:"Supine Hamstring Stretch", works:"Hamstrings, calves", cue:"Lie on your back, loop a towel or strap around one foot and raise the straight leg until you feel the back of the thigh. Other leg flat, hips level. No bouncing.",
+   icon:`<circle cx="8" cy="46" r="4"/><path d="M12 46 L36 46"/><path d="M36 46 L44 10 M36 46 L58 46"/><path d="M16 44 L42 16"/>`},
+  {name:"Thoracic Open Book", works:"Upper back rotation, chest", cue:"Lie on your side, knees bent and stacked, arms straight out in front. Open the top arm up and over to the other side, following it with your eyes. Knees stay together.",
+   icon:`<circle cx="10" cy="40" r="4"/><path d="M14 42 L38 42"/><path d="M38 42 L46 50 L36 54"/><path d="M18 42 L32 50 M18 40 L10 22"/>`},
+  {name:"Wall Slides", works:"Shoulders, upper back posture", cue:"Back, head and arms against a wall in a goalpost shape. Slide the arms up as far as you can while keeping wrists and elbows touching the wall, then back down. Ribs down.",
+   icon:`<path d="M52 4 L52 60"/><circle cx="42" cy="10" r="4"/><path d="M42 14 L42 36"/><path d="M42 36 L38 58 M42 36 L46 58"/><path d="M42 18 L30 18 L30 4"/>`},
+  {name:"Child's Pose", works:"Lower back, lats, hips", cue:"Kneel, sit your hips back toward your heels and walk your hands forward. Let your forehead rest down and breathe slowly into your back.",
+   icon:`<circle cx="14" cy="44" r="4"/><path d="M18 44 Q30 28 44 44"/><path d="M16 48 L4 48"/><path d="M44 44 L50 54 L30 54"/>`},
+  {name:"Mat cool-down flow", works:"Hips, spine, shoulders", cue:"About 2 minutes each: Cat-Cow, World's Greatest Stretch, Figure-4 Glute Stretch, Thoracic Open Book, Child's Pose. Tap each in Active Recovery for the full how-to.",
+   icon:`<circle cx="14" cy="44" r="4"/><path d="M18 44 Q30 28 44 44"/><path d="M16 48 L4 48"/><path d="M44 44 L50 54 L30 54"/>`}
 ];
 // Program names that share a guide entry with a differently named exercise.
 const GUIDE_ALIAS = {
-  "Lat Pulldown, wide grip": "Lat Pulldown (machine)",
-  "Mat stretch / mobility flow": "Mobility / stretch flow"
+  "Lat Pulldown, wide grip": "Lat Pulldown (machine)"
 };
 function guideFor(name){
   const key = GUIDE_ALIAS[name] || name;
@@ -1173,7 +1229,6 @@ function renderGuide(){
       ${guideFigure(g, "guide-icon-wrap")}
       <div class="guide-info">
         <div class="guide-name">${g.name}</div>
-        <div class="guide-days">${g.days.join(" · ")}</div>
         <div class="guide-works">${g.works}</div>
         <div class="guide-cue">${g.cue}</div>
       </div>
@@ -1327,6 +1382,7 @@ async function init(){
   ["exerciseCard","cardioCard"].forEach(id=>{
     document.getElementById(id).addEventListener("change", (e)=>{
       if(e.target.matches('input[type="checkbox"]')) haptic();
+      if(e.target.id==="cardioSelect"){ haptic(); renderCardioDetail(); }
     });
   });
   document.getElementById("workoutSelect").addEventListener("change", (e)=>selectWorkout(e.target.value));
@@ -1353,6 +1409,7 @@ async function init(){
     document.querySelectorAll(".done-check").forEach(c=>{ checks[c.dataset.id] = c.checked; });
     const cardio = document.getElementById("cardioCheck");
     const cardioDone = cardio ? cardio.checked : null;
+    const cardioPick = document.getElementById("cardioSelect")?.value;
     hardcoreMode = !hardcoreMode;
     renderTodayForm();
     document.querySelectorAll(".done-check").forEach(c=>{
@@ -1360,6 +1417,8 @@ async function init(){
     });
     const cardioAfter = document.getElementById("cardioCheck");
     if(cardioAfter && cardioDone !== null) cardioAfter.checked = cardioDone;
+    const pickAfter = document.getElementById("cardioSelect");
+    if(pickAfter && cardioPick){ pickAfter.value = cardioPick; renderCardioDetail(); }
   });
 }
 init();
