@@ -137,6 +137,8 @@
   .howto-text{flex:1; min-width:0;}
   .howto-works{font-size:11.5px; color:var(--accent); margin-bottom:4px;}
   .howto-cue{font-size:13px; color:var(--text-muted); line-height:1.45;}
+  .howto-steps{margin:6px 0 0; padding-left:18px; font-size:12.5px; color:var(--text-muted); line-height:1.45;}
+  .howto-steps li{margin-bottom:4px;}
   .exercise-target{font-size:12px; color:var(--text-muted); margin-top:2px;}
   .hc-hint{color:var(--fire);}
   .exercise-controls{display:flex; align-items:center; gap:8px; flex-shrink:0;}
@@ -157,8 +159,8 @@
 
   .section-label{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin:4px 0 8px;}
   .cardio-box{background:var(--panel-2); border-radius:10px; padding:10px 12px; margin-top:4px;}
-  #cardioSelect{padding:9px 32px 9px 12px; font-size:14px; font-weight:500;}
-  .cardio-detail{font-size:12.5px; color:var(--text-muted); margin-top:8px; line-height:1.4;}
+  .cardio-title{font-size:14px; font-weight:500;}
+  .cardio-detail{font-size:12.5px; color:var(--text-muted); margin-top:3px; line-height:1.4;}
   .cardio-check-row{display:flex; align-items:center; justify-content:space-between; margin-top:8px;}
 
   .save-btn{
@@ -326,7 +328,7 @@
 
 <script>
 // Bump on every change that ships: the update check compares it with the live page.
-const APP_VERSION = "2026-10-10.4";
+const APP_VERSION = "2026-10-10.5";
 const ACCENT = "#f0a83c";
 // ---------- Program definition ----------
 const PROGRAM = {
@@ -377,15 +379,7 @@ const PROGRAM = {
     label: "Active Recovery",
     dayName: "Flex day",
     exercises: [
-      {id:"r2", name:"Cat-Cow", reps:"10 slow reps", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r3", name:"World's Greatest Stretch", reps:"5 / side", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r4", name:"90/90 Hip Switch", reps:"8 / side", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r5", name:"Half-Kneeling Hip Flexor Stretch", reps:"45 sec / side", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r6", name:"Figure-4 Glute Stretch", reps:"45 sec / side", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r7", name:"Supine Hamstring Stretch", reps:"45 sec / side", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r8", name:"Thoracic Open Book", reps:"8 / side", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r9", name:"Wall Slides", reps:"10 slow reps", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"r10", name:"Child's Pose", reps:"60 sec, breathe slowly", start:null, unit:"sec", equip:"bodyweight"}
+      {id:"r1", name:"Mobility / stretch flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
     ],
     cardio: {name:"Easy bike or walk", detail:"20–30 min, level 1 — easy conversational pace, no intensity"}
   },
@@ -401,7 +395,7 @@ const PROGRAM = {
       {id:"k6", name:"KB Reverse Lunge", reps:"3 × 10/leg", start:20, unit:"lb", equip:"kb"},
       {id:"k7", name:"KB Halo", reps:"2 × 10/direction", start:10, unit:"lb", equip:"kb"},
       {id:"k8", name:"Plank", reps:"3 × 30–45 sec", start:null, unit:"sec", equip:"bodyweight"},
-      {id:"k9", name:"Mat cool-down flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
+      {id:"k9", name:"Mat stretch / mobility flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
     ],
     cardio: {name:"Jump rope / jacks intervals", detail:"6 rounds: 40 sec on, 20 sec easy. Jumping jacks or step-jacks if there's no rope."}
   },
@@ -417,24 +411,6 @@ const PROGRAM = {
     cardio: {name:"Recreational activity", detail:"Swapped in for a lift day — log what you played instead."}
   }
 };
-
-// Every finisher you can pick on a lift or recovery day. Each workout's own
-// cardio (PROGRAM[type].cardio) is the default selection.
-const CARDIO_OPTIONS = [
-  {name:"Treadmill HIIT finisher", detail:"6–8 rounds: 30 sec fast/incline, 90 sec walk recovery (~12 min total)"},
-  {name:"Steady-state bike", detail:"15–20 min, level 1–3 — your comfort zone, build time before intensity"},
-  {name:"Run/walk intervals (treadmill)", detail:"Start 1 min run / 1 min walk × 8 (16 min). Add a run interval every 1–2 weeks as it feels manageable."},
-  {name:"Incline treadmill walk", detail:"12–15 min at 8–12% incline, 2.5–3.2 mph. Don't hold the rails."},
-  {name:"Rower", detail:"10–15 min steady at ~22 strokes/min: push with legs first, then lean back, then pull."},
-  {name:"Stair climber", detail:"10–12 min at a pace you can hold; light hands on the rails, stand tall."},
-  {name:"Elliptical", detail:"12–15 min, moderate resistance; push and pull the handles."},
-  {name:"Jump rope / jacks intervals", detail:"6 rounds: 40 sec on, 20 sec easy. Jumping jacks or step-jacks if there's no rope."},
-  {name:"Easy bike or walk", detail:"20–30 min, level 1 — easy conversational pace, no intensity"}
-];
-function cardioDetail(name){
-  const opt = CARDIO_OPTIONS.find(o=>o.name===name);
-  return opt ? opt.detail : "";
-}
 
 const SESSION_ORDER = ["monday","wednesday","weekend","recovery","rest","kettlebell","recreational"];
 // Full-body split, in order: A → B → C.
@@ -819,6 +795,7 @@ function renderTodayForm(){
         <div class="howto-text">
           <div class="howto-works">Works: ${guide.works}</div>
           <div class="howto-cue">${guide.cue}</div>
+          ${stepsHtml(guide)}
         </div>
       </div>` : ""}
     `;
@@ -841,17 +818,11 @@ function renderTodayForm(){
   });
 
   const prevCardio = existing ? existing.data.cardio || {} : {};
-  const chosen = prevCardio.name || prog.cardio.name;
-  // A saved finisher that's no longer in the list still shows as itself.
-  const options = CARDIO_OPTIONS.some(o=>o.name===chosen) ? CARDIO_OPTIONS : [{name:chosen, detail:""}, ...CARDIO_OPTIONS];
   cardioCard.innerHTML = `
     <div class="section-label">Cardio finisher</div>
     <div class="cardio-box">
-      <div class="select-wrap">
-        <select id="cardioSelect" aria-label="Cardio finisher">${options.map(o=>
-          `<option value="${esc(o.name)}"${o.name===chosen ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select>
-      </div>
-      <div class="cardio-detail" id="cardioDetail"></div>
+      <div class="cardio-title">${prog.cardio.name}</div>
+      <div class="cardio-detail">${prog.cardio.detail}${hardcoreMode ? '<br><b style="color:var(--fire)">🔥 Hardcore add-on:</b> tack on 5 extra minutes, or bump pace/incline/resistance one notch.' : ''}</div>
       <div class="cardio-check-row">
         <label class="field-label" style="margin:0;">Completed</label>
         <label class="check-wrap">
@@ -861,15 +832,7 @@ function renderTodayForm(){
       </div>
     </div>
   `;
-  renderCardioDetail();
   document.getElementById("savedNote").textContent = existing ? "Loaded saved log for this day — edit and re-save anytime." : "";
-}
-
-function renderCardioDetail(){
-  const sel = document.getElementById("cardioSelect");
-  if(!sel) return;
-  document.getElementById("cardioDetail").innerHTML = esc(cardioDetail(sel.value)) +
-    (hardcoreMode ? '<br><b style="color:var(--fire)">🔥 Hardcore add-on:</b> tack on 5 extra minutes, or bump pace/incline/resistance one notch.' : '');
 }
 
 async function saveToday(){
@@ -921,7 +884,7 @@ async function saveToday(){
       };
     });
     const cardio = {
-      name: document.getElementById("cardioSelect").value,
+      name: prog.cardio.name,
       completed: document.getElementById("cardioCheck").checked
     };
     sessionObj = {
@@ -1189,34 +1152,30 @@ const GUIDE = [
    icon:`<circle cx="32" cy="14" r="10"/><path d="M32 26 L32 34"/><path d="M32 34 L27 56 M32 34 L37 56"/>`},
   {name:"DB Romanian / Sumo Deadlift", works:"Glutes, hamstrings, inner thighs", cue:"Romanian: feet hip-width, hinge back with a flat back. Sumo: wide stance, toes out, one dumbbell between your legs, chest up. Either way, stand tall by squeezing your glutes.",
    icon:`<circle cx="32" cy="10" r="4"/><path d="M32 14 L32 32"/><path d="M32 32 L20 44 L16 56 M32 32 L44 44 L48 56"/><path d="M32 18 L32 40"/><rect x="28" y="40" width="8" height="5" rx="1"/>`},
-  {name:"Cat-Cow", works:"Spine, upper and lower back", cue:"On hands and knees. Inhale, drop the belly and lift the chest (cow); exhale, round the back and tuck the chin (cat). Move one vertebra at a time.",
-   icon:`<circle cx="12" cy="28" r="4"/><path d="M16 30 Q32 16 48 30"/><path d="M18 31 L18 50 M46 30 L46 50"/><path d="M4 50 L60 50"/>`},
-  {name:"World's Greatest Stretch", works:"Hip flexors, hamstrings, upper back", cue:"Big lunge forward, back knee off the floor. Put the inside hand down by the front foot, then rotate and reach the other arm to the ceiling. Hold 2–3 breaths, switch.",
-   icon:`<circle cx="30" cy="12" r="4"/><path d="M30 16 L34 32"/><path d="M34 32 L46 40 L46 54 M34 32 L18 46 L8 52"/><path d="M31 21 L40 44 M31 21 L24 4"/>`},
-  {name:"90/90 Hip Switch", works:"Hip rotation (inner + outer)", cue:"Sit with both knees bent to 90°, one leg in front and one to the side. Keeping your chest tall, rotate both knees over to the other side. Go slow; use your hands behind you if needed.",
-   icon:`<circle cx="32" cy="12" r="4"/><path d="M32 16 L32 36"/><path d="M32 36 L48 36 L48 50 M32 36 L18 44 L8 40"/><path d="M32 22 L22 30"/>`},
-  {name:"Half-Kneeling Hip Flexor Stretch", works:"Hip flexors, quads", cue:"Kneel on one knee, other foot forward. Squeeze the glute of the down leg and tuck the pelvis; shift forward just until you feel the front of the hip stretch. Reach the same-side arm overhead.",
-   icon:`<circle cx="28" cy="10" r="4"/><path d="M28 14 L30 32"/><path d="M30 32 L44 34 L44 52 M30 32 L22 50 L8 52"/><path d="M28 18 L30 2"/>`},
-  {name:"Figure-4 Glute Stretch", works:"Glutes, outer hip", cue:"Lie on your back, cross one ankle over the opposite knee, then pull that thigh toward your chest. Keep the crossed foot flexed and your head down.",
-   icon:`<circle cx="8" cy="40" r="4"/><path d="M12 40 L34 40"/><path d="M34 40 L44 24 L50 34 M34 40 L46 30 L54 40"/><path d="M16 40 L40 28"/>`},
-  {name:"Supine Hamstring Stretch", works:"Hamstrings, calves", cue:"Lie on your back, loop a towel or strap around one foot and raise the straight leg until you feel the back of the thigh. Other leg flat, hips level. No bouncing.",
-   icon:`<circle cx="8" cy="46" r="4"/><path d="M12 46 L36 46"/><path d="M36 46 L44 10 M36 46 L58 46"/><path d="M16 44 L42 16"/>`},
-  {name:"Thoracic Open Book", works:"Upper back rotation, chest", cue:"Lie on your side, knees bent and stacked, arms straight out in front. Open the top arm up and over to the other side, following it with your eyes. Knees stay together.",
-   icon:`<circle cx="10" cy="40" r="4"/><path d="M14 42 L38 42"/><path d="M38 42 L46 50 L36 54"/><path d="M18 42 L32 50 M18 40 L10 22"/>`},
-  {name:"Wall Slides", works:"Shoulders, upper back posture", cue:"Back, head and arms against a wall in a goalpost shape. Slide the arms up as far as you can while keeping wrists and elbows touching the wall, then back down. Ribs down.",
-   icon:`<path d="M52 4 L52 60"/><circle cx="42" cy="10" r="4"/><path d="M42 14 L42 36"/><path d="M42 36 L38 58 M42 36 L46 58"/><path d="M42 18 L30 18 L30 4"/>`},
-  {name:"Child's Pose", works:"Lower back, lats, hips", cue:"Kneel, sit your hips back toward your heels and walk your hands forward. Let your forehead rest down and breathe slowly into your back.",
-   icon:`<circle cx="14" cy="44" r="4"/><path d="M18 44 Q30 28 44 44"/><path d="M16 48 L4 48"/><path d="M44 44 L50 54 L30 54"/>`},
-  {name:"Mat cool-down flow", works:"Hips, spine, shoulders", cue:"About 2 minutes each: Cat-Cow, World's Greatest Stretch, Figure-4 Glute Stretch, Thoracic Open Book, Child's Pose. Tap each in Active Recovery for the full how-to.",
-   icon:`<circle cx="14" cy="44" r="4"/><path d="M18 44 Q30 28 44 44"/><path d="M16 48 L4 48"/><path d="M44 44 L50 54 L30 54"/>`}
+  {name:"Mobility / stretch flow", works:"Hips, spine, shoulders (recovery)", cue:"About 10 minutes, slow and controlled. Breathe and ease into range, never force it.",
+   steps:[
+     "Cat-Cow: 10 slow reps. On hands and knees, arch the back up, then let the belly drop.",
+     "World's Greatest Stretch: 5 per side. Big lunge, hand down inside the front foot, rotate and reach the other arm up.",
+     "90/90 Hip Switch: 8 per side. Sit with both knees bent to 90°, rotate both knees to the other side, chest tall.",
+     "Half-Kneeling Hip Flexor: 45 sec per side. Squeeze the back glute, tuck the pelvis, shift forward slightly.",
+     "Figure-4 Glute Stretch: 45 sec per side. On your back, ankle over opposite knee, pull the thigh in.",
+     "Hamstring Stretch: 45 sec per side. On your back, strap or towel around the foot, raise the straight leg.",
+     "Thoracic Open Book: 8 per side. Lie on your side, knees stacked, open the top arm across to the other side.",
+     "Child's Pose: 60 sec. Hips back to heels, arms forward, breathe into your back."
+   ],
+   icon:`<circle cx="28" cy="12" r="4"/><path d="M28 16 L30 32"/><path d="M30 32 L20 44 L22 56 M30 32 L44 42 L52 56"/><path d="M28 19 L38 6"/><path d="M28 21 L20 28"/>`}
 ];
 // Program names that share a guide entry with a differently named exercise.
 const GUIDE_ALIAS = {
-  "Lat Pulldown, wide grip": "Lat Pulldown (machine)"
+  "Lat Pulldown, wide grip": "Lat Pulldown (machine)",
+  "Mat stretch / mobility flow": "Mobility / stretch flow"
 };
 function guideFor(name){
   const key = GUIDE_ALIAS[name] || name;
   return GUIDE.find(g=>g.name===key) || null;
+}
+function stepsHtml(g){
+  return g.steps ? `<ol class="howto-steps">${g.steps.map(t=>`<li>${t}</li>`).join("")}</ol>` : "";
 }
 function guideFigure(g, cls){
   return `<div class="${cls}"><svg viewBox="0 0 64 64" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${g.name} diagram">${g.icon}</svg></div>`;
@@ -1231,6 +1190,7 @@ function renderGuide(){
         <div class="guide-name">${g.name}</div>
         <div class="guide-works">${g.works}</div>
         <div class="guide-cue">${g.cue}</div>
+        ${stepsHtml(g)}
       </div>
     </div>
   `).join("") + `</div>`;
@@ -1382,7 +1342,6 @@ async function init(){
   ["exerciseCard","cardioCard"].forEach(id=>{
     document.getElementById(id).addEventListener("change", (e)=>{
       if(e.target.matches('input[type="checkbox"]')) haptic();
-      if(e.target.id==="cardioSelect"){ haptic(); renderCardioDetail(); }
     });
   });
   document.getElementById("workoutSelect").addEventListener("change", (e)=>selectWorkout(e.target.value));
@@ -1409,7 +1368,6 @@ async function init(){
     document.querySelectorAll(".done-check").forEach(c=>{ checks[c.dataset.id] = c.checked; });
     const cardio = document.getElementById("cardioCheck");
     const cardioDone = cardio ? cardio.checked : null;
-    const cardioPick = document.getElementById("cardioSelect")?.value;
     hardcoreMode = !hardcoreMode;
     renderTodayForm();
     document.querySelectorAll(".done-check").forEach(c=>{
@@ -1417,8 +1375,6 @@ async function init(){
     });
     const cardioAfter = document.getElementById("cardioCheck");
     if(cardioAfter && cardioDone !== null) cardioAfter.checked = cardioDone;
-    const pickAfter = document.getElementById("cardioSelect");
-    if(pickAfter && cardioPick){ pickAfter.value = cardioPick; renderCardioDetail(); }
   });
 }
 init();

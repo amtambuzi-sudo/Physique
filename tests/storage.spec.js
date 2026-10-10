@@ -78,7 +78,7 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
 
   await expect(page.locator("nav .tab")).toHaveText(["Today", "Guide"]); // Log + Trend live under Me
   await tab(page, "guide").click();
-  await expect(page.locator(".guide-row")).toHaveCount(35);
+  await expect(page.locator(".guide-row")).toHaveCount(26);
   await tab(page, "history").click();
   await expect(page.locator(".empty-state")).toBeVisible();
   await expect(page.locator("#backupCard")).toBeVisible();
@@ -181,7 +181,7 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
     { type: "monday", ids: ["m2"] },
     { type: "wednesday", ids: ["w6"] },
     { type: "weekend", ids: ["s7"] },
-    { type: "recovery", ids: ["r2"] },
+    { type: "recovery", ids: ["r1"] },
     { type: "kettlebell", ids: ["k2"] },
   ];
   for (const c of cases) {
