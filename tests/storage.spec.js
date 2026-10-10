@@ -26,11 +26,8 @@ const readKey = (page, key) => page.evaluate((k) => localStorage.getItem(k), key
 const sessionKeys = (page) => page.evaluate(() =>
   Object.keys(localStorage).filter((k) => k.startsWith("session:")).sort());
 
-async function fillLiftDay(page, weights) {
-  for (const [id, w] of Object.entries(weights)) {
-    await page.locator(`.weight-input[data-id="${id}"]`).fill(String(w));
-    await page.locator(`.done-check[data-id="${id}"]`).check();
-  }
+async function checkOff(page, ids) {
+  for (const id of ids) await page.locator(`.done-check[data-id="${id}"]`).check();
 }
 async function save(page) {
   await page.locator("#saveBtn").click();
@@ -83,8 +80,11 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
   await expect(page.locator(".empty-state")).toBeVisible();
   await expect(page.locator("#backupCard")).toBeVisible();
   await tab(page, "progress").click();
-  await expect(page.locator("#progressSelect option")).toHaveCount(32);
-  await expect(page.locator(".chart-empty")).toBeVisible();
+  await expect(page.locator("#trendWrap .chart-empty")).toHaveText("Log a workout to see your consistency here.");
+  // No weight entry anywhere: rows are name + target + checkbox.
+  await tab(page, "today").click();
+  await expect(page.locator('input[type="number"]')).toHaveCount(0);
+  await expect(page.locator(".exercise-row .done-check")).toHaveCount(8);
   expect(errors).toEqual([]);
 });
 
@@ -105,7 +105,7 @@ test("empty days pre-select their scheduled workout", async ({ page }) => {
 test("saves to the tapped date with the original key + data shape, survives reload", async ({ page }) => {
   const errors = await openApp(page);
   await day(page, "2026-10-05").click();
-  await fillLiftDay(page, { m1: 30, m3: 50 });
+  await checkOff(page, ["m1", "m3"]);
   await page.locator("#cardioCheck").check();
   await save(page);
 
@@ -118,7 +118,7 @@ test("saves to the tapped date with the original key + data shape, survives relo
     hardcore: false, cardio: { name: "Treadmill HIIT finisher", completed: true },
   });
   expect(saved.exercises).toHaveLength(7);
-  expect(saved.exercises[0]).toEqual({ id: "m1", name: "Goblet Squat (DB)", weight: 30, completed: true });
+  expect(saved.exercises[0]).toEqual({ id: "m1", name: "Goblet Squat (DB)", weight: null, completed: true });
   expect(saved.exercises[1]).toEqual({ id: "m2", name: "Chest Press (machine)", weight: null, completed: false });
 
   await page.reload();
@@ -126,7 +126,6 @@ test("saves to the tapped date with the original key + data shape, survives relo
   await expect(day(page, "2026-10-07")).not.toHaveClass(/done/);
   await day(page, "2026-10-05").click();
   await expect(workout(page, "monday")).toHaveText("Body A ✓");
-  await expect(page.locator('.weight-input[data-id="m1"]')).toHaveValue("30");
   await expect(page.locator('.done-check[data-id="m1"]')).toBeChecked();
   await expect(page.locator('.done-check[data-id="m2"]')).not.toBeChecked();
   await expect(page.locator("#cardioCheck")).toBeChecked();
@@ -135,9 +134,9 @@ test("saves to the tapped date with the original key + data shape, survives relo
   await tab(page, "history").click();
   await expect(page.locator(".hist-item")).toHaveCount(1);
   await expect(page.locator(".hist-summary")).toContainText("2/7 exercises");
-  await tab(page, "progress").click();
-  await page.locator("#progressSelect").selectOption("m1");
-  await expect(page.locator("#chartWrap circle")).toHaveCount(1);
+  await page.locator(".hist-top").click();
+  await expect(page.locator(".hist-row").nth(0)).toHaveText("Goblet Squat (DB)✓");
+  await expect(page.locator(".hist-row").nth(1)).toHaveText("Chest Press (machine)—");
   expect(errors).toEqual([]);
 });
 
@@ -146,7 +145,7 @@ test("both weekend days count toward the same Sunday-start week", async ({ page 
   for (const dk of ["2026-10-04", "2026-10-10"]) {
     await day(page, dk).click();
     await expect(workout(page, "weekend")).toHaveClass(/selected/);
-    await fillLiftDay(page, { s7: 20 });
+    await checkOff(page, ["s7"]);
     await save(page);
   }
   expect(await sessionKeys(page)).toEqual(["session:2026-10-04_weekend", "session:2026-10-10_weekend"]);
@@ -175,15 +174,15 @@ test("week arrows reach last week's days for logging", async ({ page }) => {
 test("every workout can be logged on one day and reloads", async ({ page }) => {
   const errors = await openApp(page);
   const cases = [
-    { type: "monday", weights: { m2: 45 } },
-    { type: "wednesday", weights: { w6: 30 } },
-    { type: "weekend", weights: { s7: 20 } },
-    { type: "recovery", weights: { r1: 600 } },
-    { type: "kettlebell", weights: { k2: 35 } },
+    { type: "monday", ids: ["m2"] },
+    { type: "wednesday", ids: ["w6"] },
+    { type: "weekend", ids: ["s7"] },
+    { type: "recovery", ids: ["r1"] },
+    { type: "kettlebell", ids: ["k2"] },
   ];
   for (const c of cases) {
     await workout(page, c.type).click();
-    await fillLiftDay(page, c.weights);
+    await checkOff(page, c.ids);
     await save(page);
   }
   await workout(page, "recreational").click();
@@ -206,9 +205,7 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
   await expect(page.locator(".workout-pill.logged")).toHaveCount(6);
   for (const c of cases) {
     await workout(page, c.type).click();
-    for (const [id, w] of Object.entries(c.weights)) {
-      await expect(page.locator(`.weight-input[data-id="${id}"]`)).toHaveValue(String(w));
-    }
+    for (const id of c.ids) await expect(page.locator(`.done-check[data-id="${id}"]`)).toBeChecked();
   }
   await workout(page, "recreational").click();
   await expect(page.locator("#recActivity")).toHaveValue("Pickup basketball");
@@ -218,8 +215,7 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
   await tab(page, "history").click();
   await expect(page.locator(".hist-item")).toHaveCount(6);
   await tab(page, "progress").click();
-  await page.locator("#progressSelect").selectOption("k2");
-  await expect(page.locator("#chartWrap circle")).toHaveCount(1);
+  await expect(page.locator("#trendWrap table tr").first()).toHaveText("This week6");
   expect(errors).toEqual([]);
 });
 
@@ -228,7 +224,7 @@ test("no state bleeds between days or workouts", async ({ page }) => {
   await day(page, "2026-10-05").click();
   await page.locator("#hardcoreToggle").click();
   await expect(page.locator("#hardcoreToggle")).toHaveClass(/on/);
-  await page.locator('.weight-input[data-id="m1"]').fill("99"); // unsaved
+  await page.locator('.done-check[data-id="m1"]').check(); // unsaved
 
   await workout(page, "wednesday").click();
   await expect(page.locator("#hardcoreToggle")).not.toHaveClass(/on/);
@@ -238,7 +234,7 @@ test("no state bleeds between days or workouts", async ({ page }) => {
   await page.locator("#hardcoreToggle").click();
   await day(page, "2026-10-06").click();
   await expect(page.locator("#hardcoreToggle")).not.toHaveClass(/on/);
-  await expect(page.locator('.weight-input[data-id="m1"]')).toHaveValue("");
+  await expect(page.locator('.done-check[data-id="m1"]')).not.toBeChecked();
 
   // Freeform mode hides the toggle + cardio card; a lift workout must restore them.
   await workout(page, "recreational").click();
@@ -268,10 +264,11 @@ test("reads data in the original shape; a logged day opens on its workout", asyn
   await tab(page, "history").click();
   await expect(page.locator(".hist-item")).toHaveCount(3);
   await expect(page.locator(".hist-day").first()).toHaveText("Recreational / Sports — Tennis");
+  // Old weights still show in the Log details.
+  await page.locator(".hist-top").nth(1).click();
+  await expect(page.locator(".hist-details.open .hist-row")).toHaveText(["Goblet Squat (DB)30 lb · ✓"]);
   await tab(page, "progress").click();
-  await page.locator("#progressSelect").selectOption("m1");
-  await expect(page.locator("#chartWrap circle")).toHaveCount(2);
-  await expect(page.locator(".chart-caption")).toHaveText("2026-09-28 → 2026-10-05 · 25–30 lb");
+  await expect(page.locator('.comp-row[data-id="m1"] .comp-count')).toHaveText("2/2");
   // Tuesday is normally Body A, but it has a Play session logged, so it opens on that.
   await day(page, "2026-10-06").click();
   await expect(workout(page, "recreational")).toHaveClass(/selected/);
@@ -311,8 +308,6 @@ test("hostile values in stored lift data are escaped", async ({ page }) => {
   await tab(page, "history").click();
   await page.locator(".hist-top").click();
   await tab(page, "progress").click();
-  await page.locator("#progressSelect").selectOption("m1");
-  await expect(page.locator(".chart-empty")).toBeVisible(); // non-numeric weight isn't charted
   await expect(page.locator("img")).toHaveCount(0);
   expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   expect(errors).toEqual([]);
@@ -321,7 +316,7 @@ test("hostile values in stored lift data are escaped", async ({ page }) => {
 test("export file then import into an empty browser round-trips everything", async ({ page, browser }) => {
   const errors = await openApp(page);
   await day(page, "2026-10-05").click();
-  await fillLiftDay(page, { m1: 30 });
+  await checkOff(page, ["m1"]);
   await save(page);
   await workout(page, "recreational").click();
   await page.locator("#recActivity").fill("Tennis");
@@ -429,7 +424,7 @@ test("inside a Claude.ai artifact, window.storage is used and exportable", async
       };
     },
   });
-  await fillLiftDay(page, { w2: 20 });
+  await checkOff(page, ["w2"]);
   await save(page);
   expect(await page.evaluate(() => [...window.__artifactStore.keys()].sort()))
     .toEqual(["session:2026-09-30_wednesday", "session:2026-10-07_wednesday"]);
