@@ -219,6 +219,23 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("toggling Hardcore keeps unsaved check-offs (both directions)", async ({ page }) => {
+  const errors = await openApp(page);
+  await page.locator('.done-check[data-id="w2"]').check();
+  await page.locator("#cardioCheck").check();
+  await page.locator("#hardcoreToggle").click();
+  await expect(page.locator("#hardcoreToggle")).toHaveClass(/on/);
+  await expect(page.locator('.done-check[data-id="w2"]')).toBeChecked();
+  await expect(page.locator('.done-check[data-id="w3"]')).not.toBeChecked();
+  await expect(page.locator("#cardioCheck")).toBeChecked();
+  await page.locator('.done-check[data-id="w2"]').uncheck();
+  await page.locator('.done-check[data-id="w6"]').check();
+  await page.locator("#hardcoreToggle").click();
+  await expect(page.locator('.done-check[data-id="w2"]')).not.toBeChecked();
+  await expect(page.locator('.done-check[data-id="w6"]')).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
 test("no state bleeds between days or workouts", async ({ page }) => {
   const errors = await openApp(page);
   await day(page, "2026-10-05").click();

@@ -108,7 +108,11 @@
     display:flex; align-items:center; justify-content:space-between;
     padding:10px 0; gap:10px;
   }
-  .exercise-info{flex:1; min-width:0; cursor:pointer;}
+  .exercise-info{
+    flex:1; min-width:0; cursor:pointer;
+    -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; touch-action:manipulation;
+  }
+  .exercise-item.pressing .exercise-info{opacity:.55; transition:opacity .45s;}
   .exercise-info:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:6px;}
   .exercise-name{font-size:14.5px; font-weight:500;}
   .howto-chev{display:inline-block; color:var(--text-muted); font-size:11px; margin-left:4px; transition:transform .15s;}
@@ -484,6 +488,52 @@ async function loadAllSessions(){
   }
 }
 
+// ---------- Haptics ----------
+// Android: Vibration API. iPhone (Safari has no vibrate): toggling a native
+// <input type="checkbox" switch> plays the system haptic on iOS 18+, so click
+// a throwaway hidden one. Older iOS / desktop: silently does nothing.
+function haptic(){
+  try{
+    if(typeof navigator.vibrate === "function" && navigator.vibrate(10)) return;
+  }catch(e){}
+  try{
+    const label = document.createElement("label");
+    label.setAttribute("aria-hidden", "true");
+    label.style.display = "none";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("switch", "");
+    label.appendChild(input);
+    document.head.appendChild(label);
+    label.click();
+    label.remove();
+  }catch(e){}
+}
+
+// Tap and press-and-hold on one element. A hold fires onLongPress (once) and
+// swallows the click that follows; moving the finger cancels the hold.
+const LONG_PRESS_MS = 450;
+function attachPress(el, holder, {onTap, onLongPress}){
+  let timer = null, startX = 0, startY = 0, fired = false;
+  const cancel = ()=>{ clearTimeout(timer); timer = null; holder.classList.remove("pressing"); };
+  el.addEventListener("pointerdown", (e)=>{
+    if(e.button !== 0) return;
+    fired = false;
+    startX = e.clientX; startY = e.clientY;
+    holder.classList.add("pressing");
+    timer = setTimeout(()=>{ timer = null; holder.classList.remove("pressing"); fired = true; onLongPress(); }, LONG_PRESS_MS);
+  });
+  el.addEventListener("pointermove", (e)=>{
+    if(timer && Math.hypot(e.clientX-startX, e.clientY-startY) > 10) cancel();
+  });
+  ["pointerup","pointercancel","pointerleave"].forEach(t=>el.addEventListener(t, cancel));
+  el.addEventListener("contextmenu", (e)=>e.preventDefault()); // no long-press menu
+  el.addEventListener("click", ()=>{
+    if(fired){ fired = false; return; }
+    onTap();
+  });
+}
+
 // ---------- Rendering: header (day pills = daily log, workout pills = what was done) ----------
 function sessionsOn(dk){
   return allSessions.filter(s=>s.dateKey===dk);
@@ -496,6 +546,7 @@ function defaultWorkoutFor(d){
 }
 
 function selectDay(d){
+  haptic();
   selectedDate = new Date(d);
   viewWeekStart = startOfWeek(selectedDate);
   currentSessionType = defaultWorkoutFor(selectedDate);
@@ -506,6 +557,7 @@ function selectDay(d){
 }
 
 function selectWorkout(type){
+  haptic();
   currentSessionType = type;
   hardcoreMode = false;
   renderHeader();
@@ -514,6 +566,7 @@ function selectWorkout(type){
 }
 
 function shiftWeek(n){
+  haptic();
   viewWeekStart = addDays(viewWeekStart, 7*n);
   renderHeader();
 }
@@ -687,7 +740,10 @@ function renderTodayForm(){
         item.classList.toggle("open", open);
         info.setAttribute("aria-expanded", String(open));
       };
-      info.addEventListener("click", toggle);
+      attachPress(info, item, {
+        onTap: ()=>{ haptic(); toggle(); },
+        onLongPress: ()=>{ haptic(); toggle(); }
+      });
       info.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); toggle(); } });
     }
     exCard.appendChild(item);
@@ -1185,7 +1241,14 @@ async function init(){
   renderGuide();
   renderHistory();
   renderTrend();
-  document.getElementById("saveBtn").addEventListener("click", saveToday);
+  document.getElementById("saveBtn").addEventListener("click", ()=>{ haptic(); saveToday(); });
+  // Check-offs (exercises, cardio, recreational "Completed"); the cards' contents
+  // are re-rendered, so listen on the cards themselves.
+  ["exerciseCard","cardioCard"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", (e)=>{
+      if(e.target.matches('input[type="checkbox"]')) haptic();
+    });
+  });
   document.getElementById("prevWeek").addEventListener("click", ()=>shiftWeek(-1));
   document.getElementById("nextWeek").addEventListener("click", ()=>shiftWeek(1));
   document.getElementById("exportBtn").addEventListener("click", exportFile);
@@ -1203,8 +1266,19 @@ async function init(){
     importBackup(text);
   });
   document.getElementById("hardcoreToggle").addEventListener("click", ()=>{
+    haptic();
+    // Same day + workout, just a different view: keep unsaved check-offs.
+    const checks = {};
+    document.querySelectorAll(".done-check").forEach(c=>{ checks[c.dataset.id] = c.checked; });
+    const cardio = document.getElementById("cardioCheck");
+    const cardioDone = cardio ? cardio.checked : null;
     hardcoreMode = !hardcoreMode;
     renderTodayForm();
+    document.querySelectorAll(".done-check").forEach(c=>{
+      if(c.dataset.id in checks) c.checked = checks[c.dataset.id];
+    });
+    const cardioAfter = document.getElementById("cardioCheck");
+    if(cardioAfter && cardioDone !== null) cardioAfter.checked = cardioDone;
   });
 }
 init();
