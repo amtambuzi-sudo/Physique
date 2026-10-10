@@ -110,6 +110,7 @@
   .exercise-info{flex:1; min-width:0;}
   .exercise-name{font-size:14.5px; font-weight:500;}
   .exercise-target{font-size:12px; color:var(--text-muted); margin-top:2px;}
+  .overload-ready{color:var(--accent); font-weight:600;}
   .exercise-controls{display:flex; align-items:center; gap:8px; flex-shrink:0;}
   .weight-input{
     width:64px; background:var(--panel-2); color:var(--text); border:1px solid var(--border);
@@ -466,6 +467,45 @@ function lastWeightFor(exId){
   return null;
 }
 
+// ---------- Progressive overload ----------
+// An exercise completed at the same weight in OVERLOAD_WEEKS consecutive
+// Sun–Sat weeks is ready for +OVERLOAD_STEP_LB. A weight change, a skipped week,
+// or a lapse of more than a week restarts the count. Only completed (checked)
+// entries count; timed (sec) exercises are excluded.
+const OVERLOAD_WEEKS = 2;
+const OVERLOAD_STEP_LB = 5;
+
+function weekIndex(dk){
+  const s = startOfWeek(new Date(dk+"T00:00:00"));
+  return Math.round(Date.UTC(s.getFullYear(), s.getMonth(), s.getDate()) / (7*86400000));
+}
+
+// Looks only at sessions before `beforeKey`, so a day's advice doesn't change
+// once that day is logged. Returns null when there's no current streak.
+function overloadFor(ex, beforeKey){
+  if(ex.unit==="sec") return null;
+  const logs = [];
+  for(const s of allSessions){ // newest first
+    if(s.dateKey >= beforeKey) continue;
+    const e = (s.data.exercises||[]).find(x=>x.id===ex.id);
+    if(!e || !e.completed || e.weight===null || e.weight==="" || e.weight===undefined) continue;
+    const w = Number(e.weight);
+    if(Number.isFinite(w)) logs.push({week: weekIndex(s.dateKey), weight: w});
+  }
+  if(!logs.length) return null;
+  const weight = logs[0].weight;
+  if(weekIndex(beforeKey) - logs[0].week > 1) return null; // lapsed
+  let earliest = logs[0].week, weeks = 1;
+  for(const l of logs){
+    if(l.weight !== weight) break;
+    if(l.week === earliest) continue;
+    if(l.week !== earliest - 1) break; // gap
+    earliest = l.week;
+    weeks++;
+  }
+  return {weight, weeks, ready: weeks >= OVERLOAD_WEEKS, next: weight + OVERLOAD_STEP_LB};
+}
+
 // ---------- Rendering: header (day pills = daily log, workout pills = what was done) ----------
 function sessionsOn(dk){
   return allSessions.filter(s=>s.dateKey===dk);
@@ -630,6 +670,14 @@ function renderTodayForm(){
     const prevLogged = existing ? ((existing.data.exercises||[]).find(e=>e.id===ex.id)||{}) : {};
     const lastVal = prevLogged.weight!==undefined && prevLogged.weight!==null && prevLogged.weight!=="" ? prevLogged.weight : lastWeightFor(ex.id);
     let placeholder = lastVal !== null && lastVal !== undefined ? lastVal : (ex.start!==null ? ex.start : "");
+    const overload = overloadFor(ex, dateKey(selectedDate));
+    let overloadHtml = "";
+    if(overload && overload.ready){
+      placeholder = overload.next;
+      overloadHtml = ` · <span class="overload-ready">⬆ +${OVERLOAD_STEP_LB} → ${esc(overload.next)} lb</span>`;
+    } else if(overload){
+      overloadHtml = ` · wk ${overload.weeks}/${OVERLOAD_WEEKS} at ${esc(overload.weight)} lb`;
+    }
     const displayReps = hardcoreMode ? bumpReps(ex.reps) : ex.reps;
     if(hardcoreMode && ex.unit!=="sec" && placeholder!==""){ placeholder = bumpWeight(placeholder); }
     const checked = prevLogged.completed ? "checked" : "";
@@ -638,7 +686,7 @@ function renderTodayForm(){
     row.innerHTML = `
       <div class="exercise-info">
         <div class="exercise-name">${ex.name}</div>
-        <div class="exercise-target">${displayReps}${lastVal!==null && lastVal!==undefined ? " · last: "+esc(lastVal)+(ex.unit==="sec"?" sec":" lb") : (ex.start!==null ? " · start ~"+ex.start+" lb" : "")}</div>
+        <div class="exercise-target">${displayReps}${lastVal!==null && lastVal!==undefined ? " · last: "+esc(lastVal)+(ex.unit==="sec"?" sec":" lb") : (ex.start!==null ? " · start ~"+ex.start+" lb" : "")}${overloadHtml}</div>
       </div>
       <div class="exercise-controls">
         <input type="number" inputmode="decimal" class="weight-input" data-id="${ex.id}" placeholder="${esc(placeholder)}" value="${esc(prevLogged.weight)}">
