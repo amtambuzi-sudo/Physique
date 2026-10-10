@@ -327,7 +327,7 @@
 
 <script>
 // Bump on every change that ships: the update check compares it with the live page.
-const APP_VERSION = "2026-10-10.2";
+const APP_VERSION = "2026-10-10.3";
 const ACCENT = "#f0a83c";
 // ---------- Program definition ----------
 const PROGRAM = {
@@ -678,6 +678,13 @@ function nextLoad(ex){
   if(!steps || ex.start===null) return null;
   return steps.find(w=>w > ex.start) ?? null;
 }
+// Hardcore only applies where it changes something: an extra set or a heavier
+// weight on at least one exercise. Active Recovery (timed mobility), Rest day
+// and Recreational have nothing to push, so they get no toggle.
+function hasHardcore(prog){
+  return !prog.isRest && !prog.isFreeform && (prog.exercises||[])
+    .some(ex=>bumpReps(ex.reps)!==ex.reps || nextLoad(ex)!==null);
+}
 
 function renderTodayForm(){
   const prog = PROGRAM[currentSessionType];
@@ -748,7 +755,8 @@ function renderTodayForm(){
     return;
   }
 
-  toggle.style.display = "flex";
+  if(!hasHardcore(prog)) hardcoreMode = false;
+  toggle.style.display = hasHardcore(prog) ? "flex" : "none";
   cardioCard.style.display = "block";
   toggle.classList.toggle("on", hardcoreMode);
   hcLabel.textContent = hardcoreMode ? "Hardcore Mode — on, extra sets + heavier loads" : "Hardcore Mode — off";
@@ -882,7 +890,7 @@ async function saveToday(){
       dateDisplay: formatNice(selectedDate),
       sessionType: currentSessionType,
       dayLabel: prog.label,
-      hardcore: hardcoreMode,
+      hardcore: hardcoreMode && hasHardcore(prog),
       exercises,
       cardio,
       savedAt: new Date().toISOString()

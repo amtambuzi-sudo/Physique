@@ -28,6 +28,7 @@ test("every suggested weight, normal and Hardcore, exists for its equipment", as
     await page.locator("#workoutSelect").selectOption(type);
     for (const hardcore of [false, true]) {
       const toggle = page.locator("#hardcoreToggle");
+      if (hardcore && !(await toggle.isVisible())) continue; // e.g. Active Recovery: no Hardcore
       if (hardcore !== (await toggle.evaluate((el) => el.classList.contains("on")))) await toggle.click();
       const rows = await page.locator(".exercise-item").evaluateAll((els) => els.map((el) => ({
         id: el.querySelector(".done-check").dataset.id,
@@ -59,7 +60,7 @@ test("Hardcore adds a set to sets×reps only; timed flows keep their length", as
   await page.clock.setFixedTime(new Date("2026-10-07T10:00:00"));
   await page.goto(APP_URL);
   await page.locator("#workoutSelect").selectOption("recovery");
-  await page.locator("#hardcoreToggle").click();
+  await expect(page.locator("#hardcoreToggle")).toBeHidden(); // nothing to push on a recovery flow
   await expect(page.locator(".exercise-target")).toHaveText(["10 min"]);
   await page.locator("#workoutSelect").selectOption("kettlebell");
   await page.locator("#hardcoreToggle").click();
