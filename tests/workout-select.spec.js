@@ -22,9 +22,9 @@ test("one dropdown lists every workout incl. Rest day; no button row", async ({ 
   await expect(select(page).locator("option")).toHaveText([
     "Full Body A", "Full Body B", "Full Body C", "Active Recovery", "Rest day", "Kettlebell + Mat", "Recreational / Sports",
   ]);
-  await expect(select(page)).toHaveValue("monday");
+  await expect(select(page)).toHaveValue("wednesday");
   await select(page).selectOption("weekend");
-  await expect(page.locator("#loggingForLabel")).toHaveText("Full Body C · today, Wednesday, Oct 7");
+  await expect(page.locator("#loggingForLabel")).toHaveText("Today, Wednesday, Oct 7");
   await expect(page.locator(".exercise-item")).toHaveCount(7);
   // Changing day re-selects that day's default.
   await page.locator('.week-pill[data-date="2026-10-05"]').click();
@@ -36,7 +36,7 @@ test("Rest day: no exercises, saves, marks the day, isn't a training session", a
   const errors = await open(page);
   await page.locator('.week-pill[data-date="2026-10-08"]').click();
   await select(page).selectOption("rest");
-  await expect(page.locator("#loggingForLabel")).toHaveText("Rest day · Thursday, Oct 8");
+  await expect(page.locator("#loggingForLabel")).toHaveText("Thursday, Oct 8");
   await expect(page.locator(".exercise-item")).toHaveCount(0);
   await expect(page.locator("#hardcoreToggle")).toBeHidden();
   await expect(page.locator("#cardioCard")).toBeHidden();
@@ -107,39 +107,38 @@ async function preselected(page, dk) {
   return v;
 }
 
-test("weekdays rotate from the last A/B/C logged; a skipped day waits; future days project ahead", async ({ page }) => {
-  const errors = await openWith(page, [["2026-10-05", "monday"]]); // did A on Monday
-  expect(await preselected(page, "2026-10-06")).toBe("wednesday"); // Tue (skipped) → B
-  expect(await preselected(page, "2026-10-07")).toBe("wednesday"); // today: still B, it waited
-  expect(await preselected(page, "2026-10-08")).toBe("weekend");   // Thu: assumes B today → C
-  expect(await preselected(page, "2026-10-09")).toBe("monday");    // Fri → A
-  expect(await preselected(page, "2026-10-10")).toBe("rest");      // Sat
-  expect(await preselected(page, "2026-10-11")).toBe("rest");      // Sun
-  expect(await preselected(page, "2026-10-12")).toBe("wednesday"); // next Mon → B
+test("next after this week's last A/B/C, but never behind the day's slot", async ({ page }) => {
+  const errors = await openWith(page, [["2026-10-05", "monday"]]); // A on Monday
+  expect(await preselected(page, "2026-10-06")).toBe("wednesday"); // Tue: after A → B
+  expect(await preselected(page, "2026-10-07")).toBe("wednesday"); // Wed: B (Tue skipped, still B)
+  expect(await preselected(page, "2026-10-08")).toBe("wednesday"); // Thu: B
+  expect(await preselected(page, "2026-10-09")).toBe("weekend");   // Fri: late in the week → C
+  expect(await preselected(page, "2026-10-10")).toBe("weekend");   // Sat → C
+  expect(await preselected(page, "2026-10-04")).toBe("monday");    // Sun before the log → A
   expect(await preselected(page, "2026-10-05")).toBe("monday");    // a logged day opens on what was logged
   expect(errors).toEqual([]);
 });
 
-test("rotation wraps C → A, and logging today moves the projection on", async ({ page }) => {
-  const errors = await openWith(page, [["2026-10-02", "weekend"], ["2026-10-07", "monday"]]);
-  expect(await preselected(page, "2026-10-05")).toBe("monday");  // after C (Fri) → A
-  expect(await preselected(page, "2026-10-08")).toBe("wednesday"); // A logged today → B tomorrow
-  expect(await preselected(page, "2026-10-09")).toBe("weekend");
+test("ahead of schedule moves on; a finished week wraps to A; a new week starts over", async ({ page }) => {
+  const errors = await openWith(page, [
+    ["2026-10-05", "monday"], ["2026-10-06", "wednesday"],   // A Mon, B Tue
+    ["2026-10-03", "weekend"],                               // last week's C doesn't count
+  ]);
+  expect(await preselected(page, "2026-10-07")).toBe("weekend"); // Wed: after B → C
+  await select(page).selectOption("weekend");
+  await page.locator("#saveBtn").click();
+  await expect(page.locator("#savedNote")).toHaveText("Saved ✓");
+  expect(await preselected(page, "2026-10-08")).toBe("monday");  // C done this week → wraps to A
+  expect(await preselected(page, "2026-10-11")).toBe("monday");  // next Sun: new week → A
+  expect(await preselected(page, "2026-10-16")).toBe("weekend"); // next Fri, nothing logged → C
   expect(errors).toEqual([]);
 });
 
-test("rest, recovery, KB and play days don't advance the rotation", async ({ page }) => {
+test("rest, recovery, KB and play days don't move the A/B/C default", async ({ page }) => {
   const errors = await openWith(page, [
-    ["2026-10-02", "monday"], ["2026-10-05", "recovery"], ["2026-10-06", "kettlebell"],
+    ["2026-10-04", "rest"], ["2026-10-05", "recovery"], ["2026-10-06", "kettlebell"],
   ]);
-  expect(await preselected(page, "2026-10-07")).toBe("wednesday"); // last A/B/C was A → B
-  // A future weekday already logged as Play counts as not-a-lift: Thu planned C after B today,
-  // Fri is Play, so next Mon is A.
-  await page.locator('.week-pill[data-date="2026-10-09"]').click();
-  await select(page).selectOption("recreational");
-  await page.locator("#saveBtn").click();
-  await expect(page.locator("#savedNote")).toHaveText("Saved ✓");
-  expect(await preselected(page, "2026-10-08")).toBe("weekend");
-  expect(await preselected(page, "2026-10-12")).toBe("monday");
+  expect(await preselected(page, "2026-10-07")).toBe("wednesday"); // Wed slot, no A/B/C yet
+  expect(await preselected(page, "2026-10-09")).toBe("weekend");
   expect(errors).toEqual([]);
 });

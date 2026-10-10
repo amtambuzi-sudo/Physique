@@ -49,7 +49,7 @@
   .week-pill.is-today .dow{color:var(--accent); font-weight:600;}
   .week-pill.done{background:var(--success-soft); border-color:var(--success); color:var(--success);}
   .week-pill.selected{border-color:var(--accent); color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent);}
-  .workout-select-row{display:flex; align-items:center; gap:10px; margin-top:8px;}
+  .workout-select-row{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
   .workout-select-row label{font-size:12px; color:var(--text-muted); flex-shrink:0;}
   .select-wrap{position:relative; flex:1; min-width:0;}
   .select-wrap::after{
@@ -239,10 +239,6 @@
     <div class="week-strip" id="weekStrip"></div>
     <button class="week-arrow" id="nextWeek" aria-label="Next week">›</button>
   </div>
-  <div class="workout-select-row">
-    <label for="workoutSelect">Workout</label>
-    <div class="select-wrap"><select id="workoutSelect"></select></div>
-  </div>
 </header>
 
 <nav>
@@ -255,6 +251,10 @@
 <main>
   <section id="tab-today">
     <div class="logging-for" id="loggingForLabel"></div>
+    <div class="workout-select-row">
+      <label for="workoutSelect">Workout</label>
+      <div class="select-wrap"><select id="workoutSelect"></select></div>
+    </div>
     <div class="rest-note" id="restNote" style="display:none;"></div>
     <div class="hardcore-toggle" id="hardcoreToggle">
       <span>🔥</span><span class="hc-label" id="hardcoreLabel">Hardcore Mode — off</span>
@@ -375,8 +375,11 @@ const PROGRAM = {
 };
 
 const SESSION_ORDER = ["monday","wednesday","weekend","recovery","rest","kettlebell","recreational"];
-// Full-body rotation the weekday default cycles through: A → B → C → A …
+// Full-body split, in order: A → B → C.
 const ROTATION = ["monday","wednesday","weekend"];
+// Where in the split each day of the (Sun–Sat) week should be at the latest,
+// indexed by getDay(): Sun–Tue A, Wed–Thu B, Fri–Sat C.
+const SPLIT_SLOT_BY_DOW = [0,0,0,1,1,2,2];
 const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // ---------- Date helpers ----------
@@ -534,29 +537,21 @@ function attachPress(el, holder, {onTap, onLongPress}){
 function sessionsOn(dk){
   return allSessions.filter(s=>s.dateKey===dk);
 }
-// A day with saved sessions opens on the first one logged. An empty weekend
-// day opens on Rest. An empty weekday opens on the next A/B/C after the last
-// one logged before it; for days after today, each unlogged weekday from today
-// on is assumed done in order, so looking ahead shows the real sequence.
-function isWeekend(d){ return d.getDay()===0 || d.getDay()===6; }
+// A logged day opens on the first thing logged. Otherwise the default is A, B
+// or C: the one after the latest A/B/C logged earlier this week, but never
+// behind where the day sits in the week (Sun–Tue A, Wed–Thu B, Fri–Sat C), so
+// late in the week it jumps ahead. Once C is done for the week it wraps to A.
 function defaultWorkoutFor(d){
   const dk = dateKey(d);
   const logged = new Set(sessionsOn(dk).map(s=>s.sessionType));
   const first = SESSION_ORDER.find(t=>logged.has(t));
   if(first) return first;
-  if(isWeekend(d)) return "rest";
 
-  const last = allSessions.find(s=>s.dateKey < dk && ROTATION.includes(s.sessionType)); // newest first
-  let idx = last ? ROTATION.indexOf(last.sessionType) + 1 : 0;
-  const todayKey = dateKey(today);
-  if(dk > todayKey){
-    let cur = new Date(today); cur.setHours(0,0,0,0);
-    if(last && last.dateKey >= todayKey) cur = addDays(new Date(last.dateKey+"T00:00:00"), 1);
-    for(; dateKey(cur) < dk; cur = addDays(cur, 1)){
-      if(!isWeekend(cur) && sessionsOn(dateKey(cur)).length===0) idx++;
-    }
-  }
-  return ROTATION[idx % ROTATION.length];
+  const weekStartKey = dateKey(startOfWeek(d));
+  const last = allSessions.find(s=>s.dateKey < dk && s.dateKey >= weekStartKey && ROTATION.includes(s.sessionType)); // newest first
+  const afterLast = last ? ROTATION.indexOf(last.sessionType) + 1 : 0;
+  if(afterLast >= ROTATION.length) return ROTATION[0];
+  return ROTATION[Math.max(afterLast, SPLIT_SLOT_BY_DOW[d.getDay()])];
 }
 
 function selectDay(d){
@@ -614,14 +609,13 @@ function renderHeader(){
 
   const label = document.getElementById("loggingForLabel");
   if(label){
-    const prog = PROGRAM[currentSessionType];
     const isToday = selKey === todayKey;
-    label.textContent = `${prog.label} · ${isToday ? "today, " : ""}${formatNice(selectedDate)}`;
+    label.textContent = `${isToday ? "Today, " : ""}${formatNice(selectedDate)}`;
   }
 }
 
 // ---------- Today tab ----------
-let currentSessionType = isWeekend(today) ? "rest" : ROTATION[0];
+let currentSessionType = ROTATION[SPLIT_SLOT_BY_DOW[today.getDay()]];
 let hardcoreMode = false;
 
 function existingSessionFor(type){
