@@ -215,13 +215,6 @@
   .stat-num{font-size:20px; font-weight:700; color:var(--accent);}
   .stat-label{font-size:11px; color:var(--text-muted); margin-top:2px;}
 
-  .nw-card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:12px;}
-  .nw-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
-  .nw-day{font-size:14.5px; font-weight:600;}
-  .nw-date{font-size:12px; color:var(--accent);}
-  .nw-ex{font-size:13px; color:var(--text-muted); padding:3px 0;}
-  .nw-ex b{color:var(--text); font-weight:500;}
-  .nw-cardio{margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); font-size:12.5px; color:var(--text-muted);}
 
   .guide-row{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border);}
   .guide-row:last-child{border-bottom:none;}
@@ -254,7 +247,6 @@
 
 <nav>
   <div class="tab active" data-tab="today">Today</div>
-  <div class="tab" data-tab="nextweek">Next Wk</div>
   <div class="tab" data-tab="guide">Guide</div>
   <div class="tab" data-tab="history">Log</div>
   <div class="tab" data-tab="progress">Trend</div>
@@ -271,10 +263,6 @@
     <div class="card" id="cardioCard"></div>
     <button class="save-btn" id="saveBtn">Save this log</button>
     <div class="saved-note" id="savedNote"></div>
-  </section>
-
-  <section id="tab-nextweek" style="display:none;">
-    <div id="nextWeekWrap"></div>
   </section>
 
   <section id="tab-guide" style="display:none;">
@@ -387,9 +375,8 @@ const PROGRAM = {
 };
 
 const SESSION_ORDER = ["monday","wednesday","weekend","recovery","rest","kettlebell","recreational"];
-// Workout pre-selected for an empty day, indexed by getDay() (0 = Sun). Off days
-// (Tue/Thu/Fri) get the split session that most recently came before them.
-const DEFAULT_WORKOUT_BY_DOW = ["weekend","monday","monday","wednesday","wednesday","wednesday","weekend"];
+// Full-body rotation the weekday default cycles through: A → B → C → A …
+const ROTATION = ["monday","wednesday","weekend"];
 const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // ---------- Date helpers ----------
@@ -547,11 +534,29 @@ function attachPress(el, holder, {onTap, onLongPress}){
 function sessionsOn(dk){
   return allSessions.filter(s=>s.dateKey===dk);
 }
-// A day with saved sessions opens on the first one logged; an empty day opens
-// on its scheduled workout.
+// A day with saved sessions opens on the first one logged. An empty weekend
+// day opens on Rest. An empty weekday opens on the next A/B/C after the last
+// one logged before it; for days after today, each unlogged weekday from today
+// on is assumed done in order, so looking ahead shows the real sequence.
+function isWeekend(d){ return d.getDay()===0 || d.getDay()===6; }
 function defaultWorkoutFor(d){
-  const logged = new Set(sessionsOn(dateKey(d)).map(s=>s.sessionType));
-  return SESSION_ORDER.find(t=>logged.has(t)) || DEFAULT_WORKOUT_BY_DOW[d.getDay()];
+  const dk = dateKey(d);
+  const logged = new Set(sessionsOn(dk).map(s=>s.sessionType));
+  const first = SESSION_ORDER.find(t=>logged.has(t));
+  if(first) return first;
+  if(isWeekend(d)) return "rest";
+
+  const last = allSessions.find(s=>s.dateKey < dk && ROTATION.includes(s.sessionType)); // newest first
+  let idx = last ? ROTATION.indexOf(last.sessionType) + 1 : 0;
+  const todayKey = dateKey(today);
+  if(dk > todayKey){
+    let cur = new Date(today); cur.setHours(0,0,0,0);
+    if(last && last.dateKey >= todayKey) cur = addDays(new Date(last.dateKey+"T00:00:00"), 1);
+    for(; dateKey(cur) < dk; cur = addDays(cur, 1)){
+      if(!isWeekend(cur) && sessionsOn(dateKey(cur)).length===0) idx++;
+    }
+  }
+  return ROTATION[idx % ROTATION.length];
 }
 
 function selectDay(d){
@@ -616,7 +621,7 @@ function renderHeader(){
 }
 
 // ---------- Today tab ----------
-let currentSessionType = DEFAULT_WORKOUT_BY_DOW[today.getDay()];
+let currentSessionType = isWeekend(today) ? "rest" : ROTATION[0];
 let hardcoreMode = false;
 
 function existingSessionFor(type){
@@ -1050,40 +1055,6 @@ function renderTrend(){
   wireChartTips(document.getElementById("weeklyChart"));
 }
 
-// ---------- Next Week preview ----------
-function renderNextWeek(){
-  const nextSun = addDays(startOfWeek(today), 7);
-  const nextMon = addDays(nextSun, 1);
-  const nextWed = addDays(nextSun, 3);
-  const nextSat = addDays(nextSun, 6);
-
-  const blocks = [
-    {type:"monday", date: nextMon},
-    {type:"wednesday", date: nextWed},
-    {type:"weekend", date: null, label: `${formatShort(nextSun)} or ${formatShort(nextSat)}`},
-    {type:"recovery", date: null, label: "Any open day"}
-  ];
-
-  const wrap = document.getElementById("nextWeekWrap");
-  wrap.innerHTML = blocks.map(b=>{
-    const prog = PROGRAM[b.type];
-    const dateStr = b.date ? formatNice(b.date) : b.label;
-    const exList = prog.exercises.map(ex=>{
-      const ref = ex.start!==null ? `${ex.start}${ex.unit==="sec"?" sec":" lb"}` : "bodyweight";
-      return `<div class="nw-ex"><b>${ex.name}</b> — ${ex.reps} · start ~${ref}</div>`;
-    }).join("");
-    return `
-      <div class="nw-card">
-        <div class="nw-top">
-          <div class="nw-day">${prog.dayName} — ${prog.label}</div>
-          <div class="nw-date">${dateStr}</div>
-        </div>
-        ${exList}
-        <div class="nw-cardio"><b style="color:var(--text)">${prog.cardio.name}:</b> ${prog.cardio.detail}</div>
-      </div>
-    `;
-  }).join("");
-}
 function formatShort(d){
   return d.toLocaleDateString(undefined, {weekday:"short", month:"short", day:"numeric"});
 }
@@ -1174,7 +1145,7 @@ function renderGuide(){
 // ---------- Tabs ----------
 function switchTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
-  ["today","nextweek","guide","history","progress"].forEach(n=>{
+  ["today","guide","history","progress"].forEach(n=>{
     document.getElementById(`tab-${n}`).style.display = (n===name) ? "block" : "none";
   });
 }
@@ -1275,7 +1246,6 @@ async function init(){
   hardcoreMode = false;
   renderTodayForm();
   renderHeader();
-  renderNextWeek();
   renderGuide();
   renderHistory();
   renderTrend();

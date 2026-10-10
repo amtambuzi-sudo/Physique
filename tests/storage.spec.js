@@ -64,15 +64,12 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
   await expect(page.locator(".week-pill .dom")).toHaveText(["4", "5", "6", "7", "8", "9", "10"]);
   await expect(day(page, "2026-10-07")).toHaveClass(/selected/);
   await expect(day(page, "2026-10-07")).toHaveClass(/is-today/);
-  await expect(page.locator("#workoutSelect")).toHaveValue("wednesday");
-  await expect(page.locator("#loggingForLabel")).toHaveText(/^Full Body B · today, Wednesday, Oct 7$/);
-  await expect(page.locator(".exercise-row")).toHaveCount(8);
+  // No history yet: the rotation starts at A.
+  await expect(page.locator("#workoutSelect")).toHaveValue("monday");
+  await expect(page.locator("#loggingForLabel")).toHaveText(/^Full Body A · today, Wednesday, Oct 7$/);
+  await expect(page.locator(".exercise-row")).toHaveCount(7);
 
-  await tab(page, "nextweek").click();
-  await expect(page.locator(".nw-card")).toHaveCount(4);
-  await expect(page.locator(".nw-date").nth(0)).toHaveText("Monday, Oct 12");
-  await expect(page.locator(".nw-date").nth(1)).toHaveText("Wednesday, Oct 14");
-  await expect(page.locator(".nw-date").nth(2)).toHaveText("Sun, Oct 11 or Sat, Oct 17");
+  await expect(page.locator(".tab")).toHaveText(["Today", "Guide", "Log", "Trend"]); // no Next Wk
   await tab(page, "guide").click();
   await expect(page.locator(".guide-row")).toHaveCount(26);
   await tab(page, "history").click();
@@ -83,15 +80,15 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
   // No weight entry anywhere: rows are name + target + checkbox.
   await tab(page, "today").click();
   await expect(page.locator('input[type="number"]')).toHaveCount(0);
-  await expect(page.locator(".exercise-row .done-check")).toHaveCount(8);
+  await expect(page.locator(".exercise-row .done-check")).toHaveCount(7);
   expect(errors).toEqual([]);
 });
 
-test("empty days pre-select their scheduled workout", async ({ page }) => {
+test("with no history: weekends preselect Rest, weekdays rotate A→B→C from today", async ({ page }) => {
   const errors = await openApp(page);
   const expected = {
-    "2026-10-04": "weekend", "2026-10-05": "monday", "2026-10-06": "monday", "2026-10-07": "wednesday",
-    "2026-10-08": "wednesday", "2026-10-09": "wednesday", "2026-10-10": "weekend",
+    "2026-10-04": "rest", "2026-10-05": "monday", "2026-10-06": "monday", "2026-10-07": "monday",
+    "2026-10-08": "wednesday", "2026-10-09": "weekend", "2026-10-10": "rest",
   };
   for (const [dk, type] of Object.entries(expected)) {
     await day(page, dk).click();
@@ -143,7 +140,8 @@ test("both weekend days count toward the same Sunday-start week", async ({ page 
   const errors = await openApp(page);
   for (const dk of ["2026-10-04", "2026-10-10"]) {
     await day(page, dk).click();
-    await expect(page.locator("#workoutSelect")).toHaveValue("weekend");
+    await expect(page.locator("#workoutSelect")).toHaveValue("rest");
+    await page.locator("#workoutSelect").selectOption("weekend");
     await checkOff(page, ["s7"]);
     await save(page);
   }
@@ -161,9 +159,9 @@ test("week arrows reach last week's days for logging", async ({ page }) => {
   // Changing the visible week doesn't change what's being logged until a day is tapped.
   await expect(page.locator("#loggingForLabel")).toContainText("Oct 7");
   await day(page, "2026-10-03").click();
-  await expect(page.locator("#loggingForLabel")).toHaveText("Full Body C · Saturday, Oct 3");
+  await expect(page.locator("#loggingForLabel")).toHaveText("Rest day · Saturday, Oct 3");
   await save(page);
-  expect(await sessionKeys(page)).toEqual(["session:2026-10-03_weekend"]);
+  expect(await sessionKeys(page)).toEqual(["session:2026-10-03_rest"]);
   await expect(day(page, "2026-10-03")).toHaveClass(/done/);
   await page.locator("#nextWeek").click();
   await expect(page.locator(".week-pill .dom")).toHaveText(["4", "5", "6", "7", "8", "9", "10"]);
@@ -220,6 +218,7 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
 
 test("toggling Hardcore keeps unsaved check-offs (both directions)", async ({ page }) => {
   const errors = await openApp(page);
+  await page.locator("#workoutSelect").selectOption("wednesday");
   await page.locator('.done-check[data-id="w2"]').check();
   await page.locator("#cardioCheck").check();
   await page.locator("#hardcoreToggle").click();
@@ -412,13 +411,13 @@ test("Copy JSON uses the clipboard, or falls back to the text box", async ({ pag
   await page.locator("#copyBtn").click();
   await expect(page.locator("#backupNote")).toHaveText("Copied 1 session to the clipboard.");
   const clip = JSON.parse(await page.evaluate(() => navigator.clipboard.readText()));
-  expect(Object.keys(clip.sessions)).toEqual(["session:2026-10-07_wednesday"]);
+  expect(Object.keys(clip.sessions)).toEqual(["session:2026-10-07_monday"]);
 
   await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error("blocked")); });
   await page.locator("#copyBtn").click();
   await expect(page.locator("#backupNote")).toContainText("Clipboard blocked");
   const boxed = JSON.parse(await page.locator("#backupText").inputValue());
-  expect(Object.keys(boxed.sessions)).toEqual(["session:2026-10-07_wednesday"]);
+  expect(Object.keys(boxed.sessions)).toEqual(["session:2026-10-07_monday"]);
   expect(errors).toEqual([]);
 });
 
@@ -440,6 +439,9 @@ test("inside a Claude.ai artifact, window.storage is used and exportable", async
       };
     },
   });
+  // Last A/B/C in the artifact store is B (Sep 30), so today rotates to C.
+  await expect(page.locator("#workoutSelect")).toHaveValue("weekend");
+  await page.locator("#workoutSelect").selectOption("wednesday");
   await checkOff(page, ["w2"]);
   await save(page);
   expect(await page.evaluate(() => [...window.__artifactStore.keys()].sort()))
@@ -461,7 +463,7 @@ test("reports failure instead of crashing when nothing can persist", async ({ pa
       Object.defineProperty(window, "localStorage", { get() { throw new DOMException("blocked", "SecurityError"); } });
     },
   });
-  await expect(page.locator(".exercise-row")).toHaveCount(8);
+  await expect(page.locator(".exercise-row")).toHaveCount(7);
   await page.locator("#saveBtn").click();
   await expect(page.locator("#savedNote")).toHaveText("Couldn't save — try again.");
   expect(errors).toEqual([]);

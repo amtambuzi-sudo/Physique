@@ -27,6 +27,8 @@ async function open(page, mode = "vibrate") {
   }, mode);
   await page.goto(APP_URL);
   await expect(page.locator(".week-pill")).toHaveCount(7);
+  await page.locator("#workoutSelect").selectOption("wednesday");
+  await page.evaluate(() => { window.__buzz.length = 0; });
   return errors;
 }
 const buzzes = (page) => page.evaluate(() => window.__buzz.length);

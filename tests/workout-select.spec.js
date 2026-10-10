@@ -22,7 +22,7 @@ test("one dropdown lists every workout incl. Rest day; no button row", async ({ 
   await expect(select(page).locator("option")).toHaveText([
     "Full Body A", "Full Body B", "Full Body C", "Active Recovery", "Rest day", "Kettlebell + Mat", "Recreational / Sports",
   ]);
-  await expect(select(page)).toHaveValue("wednesday");
+  await expect(select(page)).toHaveValue("monday");
   await select(page).selectOption("weekend");
   await expect(page.locator("#loggingForLabel")).toHaveText("Full Body C · today, Wednesday, Oct 7");
   await expect(page.locator(".exercise-item")).toHaveCount(7);
@@ -80,5 +80,66 @@ test("changing the dropdown buzzes and resets Hardcore", async ({ page }) => {
   await select(page).selectOption("kettlebell");
   expect(await page.evaluate(() => window.__buzz)).toBe(2);
   await expect(page.locator("#hardcoreToggle")).not.toHaveClass(/on/);
+  expect(errors).toEqual([]);
+});
+
+// Seeds sessions, then opens on Wed Oct 7 (this week: Sun 4 – Sat 10).
+async function openWith(page, sessions) {
+  await page.addInitScript((list) => {
+    if (sessionStorage.getItem("seeded")) return;
+    sessionStorage.setItem("seeded", "1");
+    for (const [dk, type] of list) {
+      localStorage.setItem(`session:${dk}_${type}`, JSON.stringify({
+        dateKey: dk, dateDisplay: dk, sessionType: type, dayLabel: type, hardcore: false,
+        exercises: [], cardio: { name: "x", completed: true }, savedAt: `${dk}T18:00:00.000Z`,
+      }));
+    }
+  }, sessions);
+  return open(page);
+}
+async function preselected(page, dk) {
+  if (!(await page.locator(`.week-pill[data-date="${dk}"]`).count())) {
+    await page.locator(dk < "2026-10-04" ? "#prevWeek" : "#nextWeek").click();
+  }
+  await page.locator(`.week-pill[data-date="${dk}"]`).click();
+  const v = await select(page).inputValue();
+  if (dk < "2026-10-04" || dk > "2026-10-10") await page.locator(dk < "2026-10-04" ? "#nextWeek" : "#prevWeek").click();
+  return v;
+}
+
+test("weekdays rotate from the last A/B/C logged; a skipped day waits; future days project ahead", async ({ page }) => {
+  const errors = await openWith(page, [["2026-10-05", "monday"]]); // did A on Monday
+  expect(await preselected(page, "2026-10-06")).toBe("wednesday"); // Tue (skipped) → B
+  expect(await preselected(page, "2026-10-07")).toBe("wednesday"); // today: still B, it waited
+  expect(await preselected(page, "2026-10-08")).toBe("weekend");   // Thu: assumes B today → C
+  expect(await preselected(page, "2026-10-09")).toBe("monday");    // Fri → A
+  expect(await preselected(page, "2026-10-10")).toBe("rest");      // Sat
+  expect(await preselected(page, "2026-10-11")).toBe("rest");      // Sun
+  expect(await preselected(page, "2026-10-12")).toBe("wednesday"); // next Mon → B
+  expect(await preselected(page, "2026-10-05")).toBe("monday");    // a logged day opens on what was logged
+  expect(errors).toEqual([]);
+});
+
+test("rotation wraps C → A, and logging today moves the projection on", async ({ page }) => {
+  const errors = await openWith(page, [["2026-10-02", "weekend"], ["2026-10-07", "monday"]]);
+  expect(await preselected(page, "2026-10-05")).toBe("monday");  // after C (Fri) → A
+  expect(await preselected(page, "2026-10-08")).toBe("wednesday"); // A logged today → B tomorrow
+  expect(await preselected(page, "2026-10-09")).toBe("weekend");
+  expect(errors).toEqual([]);
+});
+
+test("rest, recovery, KB and play days don't advance the rotation", async ({ page }) => {
+  const errors = await openWith(page, [
+    ["2026-10-02", "monday"], ["2026-10-05", "recovery"], ["2026-10-06", "kettlebell"],
+  ]);
+  expect(await preselected(page, "2026-10-07")).toBe("wednesday"); // last A/B/C was A → B
+  // A future weekday already logged as Play counts as not-a-lift: Thu planned C after B today,
+  // Fri is Play, so next Mon is A.
+  await page.locator('.week-pill[data-date="2026-10-09"]').click();
+  await select(page).selectOption("recreational");
+  await page.locator("#saveBtn").click();
+  await expect(page.locator("#savedNote")).toHaveText("Saved ✓");
+  expect(await preselected(page, "2026-10-08")).toBe("weekend");
+  expect(await preselected(page, "2026-10-12")).toBe("monday");
   expect(errors).toEqual([]);
 });

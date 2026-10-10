@@ -12,6 +12,7 @@ async function open(page) {
   await page.clock.setFixedTime(new Date("2026-10-07T10:00:00"));
   await page.goto(APP_URL);
   await expect(page.locator(".week-pill")).toHaveCount(7);
+  await page.locator("#workoutSelect").selectOption("wednesday");
   return errors;
 }
 const item = (page, id) => page.locator(".exercise-item", { has: page.locator(`.done-check[data-id="${id}"]`) });
