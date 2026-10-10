@@ -49,14 +49,15 @@
   .week-pill.is-today .dow{color:var(--accent); font-weight:600;}
   .week-pill.done{background:var(--success-soft); border-color:var(--success); color:var(--success);}
   .week-pill.selected{border-color:var(--accent); color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent);}
-  .workout-strip{display:flex; gap:4px; margin-top:8px;}
-  .workout-pill{
-    flex:1; min-width:0; text-align:center; padding:7px 0; border-radius:9px;
-    background:transparent; border:1px solid var(--border);
-    font-size:11px; color:var(--text-muted); cursor:pointer; white-space:nowrap;
+  .workout-select-row{display:flex; align-items:center; gap:10px; margin-top:8px;}
+  .workout-select-row label{font-size:12px; color:var(--text-muted); flex-shrink:0;}
+  .select-wrap{position:relative; flex:1; min-width:0;}
+  .select-wrap::after{
+    content:"▾"; position:absolute; right:12px; top:50%; transform:translateY(-50%);
+    color:var(--accent); font-size:12px; pointer-events:none;
   }
-  .workout-pill.logged{color:var(--success); border-color:var(--success);}
-  .workout-pill.selected{background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
+  #workoutSelect{padding:9px 32px 9px 12px; color:var(--accent); border-color:var(--accent); background:var(--accent-soft); font-weight:600;}
+  #workoutSelect option{color:var(--text); background:var(--panel); font-weight:400;}
 
   nav{display:flex; gap:5px; padding:14px 14px 0;}
   .tab{
@@ -87,6 +88,7 @@
     font-size:10px; font-weight:700; color:var(--fire); border:1px solid var(--fire);
     border-radius:6px; padding:1px 6px; margin-left:6px; vertical-align:middle;
   }
+  .rest-body{font-size:13.5px; color:var(--text-muted); line-height:1.5;}
   .rest-note{
     text-align:center; font-size:12.5px; color:var(--text-muted); background:var(--panel);
     border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; line-height:1.5;
@@ -244,7 +246,10 @@
     <div class="week-strip" id="weekStrip"></div>
     <button class="week-arrow" id="nextWeek" aria-label="Next week">›</button>
   </div>
-  <div class="workout-strip" id="workoutStrip"></div>
+  <div class="workout-select-row">
+    <label for="workoutSelect">Workout</label>
+    <div class="select-wrap"><select id="workoutSelect"></select></div>
+  </div>
 </header>
 
 <nav>
@@ -368,6 +373,11 @@ const PROGRAM = {
     ],
     cardio: {name:"Optional finisher", detail:"5–10 min light cardio if the gym has it, or skip — the swings and circuit pace already cover conditioning."}
   },
+  rest: {
+    label: "Rest day",
+    dayName: "Rest",
+    isRest: true
+  },
   recreational: {
     label: "Recreational / Sports",
     dayName: "Swap Day",
@@ -376,8 +386,7 @@ const PROGRAM = {
   }
 };
 
-const SESSION_ORDER = ["monday","wednesday","weekend","recovery","kettlebell","recreational"];
-const SESSION_SHORT = {monday:"Body A", wednesday:"Body B", weekend:"Body C", recovery:"Rec", kettlebell:"KB", recreational:"Play"};
+const SESSION_ORDER = ["monday","wednesday","weekend","recovery","rest","kettlebell","recreational"];
 // Workout pre-selected for an empty day, indexed by getDay() (0 = Sun). Off days
 // (Tue/Thu/Fri) get the split session that most recently came before them.
 const DEFAULT_WORKOUT_BY_DOW = ["weekend","monday","monday","wednesday","wednesday","wednesday","weekend"];
@@ -593,19 +602,10 @@ function renderHeader(){
   }
 
   const logged = new Set(sessionsOn(selKey).map(s=>s.sessionType));
-  const workouts = document.getElementById("workoutStrip");
-  workouts.innerHTML = "";
-  SESSION_ORDER.forEach((type)=>{
-    const pill = document.createElement("div");
-    pill.className = "workout-pill";
-    pill.dataset.type = type;
-    pill.title = PROGRAM[type].label;
-    if(logged.has(type)) pill.classList.add("logged");
-    if(currentSessionType===type) pill.classList.add("selected");
-    pill.textContent = SESSION_SHORT[type] + (logged.has(type) ? " ✓" : "");
-    pill.addEventListener("click", ()=>selectWorkout(type));
-    workouts.appendChild(pill);
-  });
+  const select = document.getElementById("workoutSelect");
+  select.innerHTML = SESSION_ORDER.map(type=>
+    `<option value="${type}">${PROGRAM[type].label}${logged.has(type) ? " ✓" : ""}</option>`).join("");
+  select.value = currentSessionType;
 
   const label = document.getElementById("loggingForLabel");
   if(label){
@@ -663,6 +663,18 @@ function renderTodayForm(){
       : "Swapped in for a kettlebell + mat only gym session.";
   } else {
     restNote.style.display = "none";
+  }
+
+  // Rest day: nothing to do but mark the day.
+  if(prog.isRest){
+    toggle.style.display = "none";
+    cardioCard.style.display = "none";
+    exCard.innerHTML = `
+      <div class="section-label">Rest day</div>
+      <div class="rest-body">No training planned. Recover, sleep, eat well. Save to mark the day as rested.</div>
+    `;
+    document.getElementById("savedNote").textContent = existing ? "Rest day logged ✓" : "";
+    return;
   }
 
   // Recreational mode has no fixed exercise list — render a freeform log instead
@@ -782,7 +794,18 @@ async function saveToday(){
   const dk = dateKey(selectedDate);
   let sessionObj;
 
-  if(prog.isFreeform){
+  if(prog.isRest){
+    sessionObj = {
+      dateKey: dk,
+      dateDisplay: formatNice(selectedDate),
+      sessionType: currentSessionType,
+      dayLabel: prog.label,
+      hardcore: false,
+      exercises: [],
+      cardio: {name: "Rest", completed: true},
+      savedAt: new Date().toISOString()
+    };
+  } else if(prog.isFreeform){
     const activity = {
       name: document.getElementById("recActivity").value || "Activity",
       duration: document.getElementById("recDuration").value === "" ? null : Number(document.getElementById("recDuration").value),
@@ -868,10 +891,15 @@ function renderHistory(){
     item.className = "hist-item";
     const detailsId = `hist-details-${idx}`;
     const recBits = [hasDuration ? `${esc(act.duration)} min` : "", esc(act.intensity)].filter(Boolean).join(" · ");
-    const summaryHtml = isRec
+    const isRest = s.sessionType === "rest";
+    const summaryHtml = isRest
+      ? "Rest ✓"
+      : isRec
       ? `${recBits ? recBits+"<br>" : ""}${cardioDone ? "✓ done" : "—"}`
       : `${doneEx}/${totalEx} exercises<br>cardio ${cardioDone ? "✓" : "—"}`;
-    const detailsHtml = isRec
+    const detailsHtml = isRest
+      ? `<div class="hist-row"><span>Rest day</span><span>no training</span></div>`
+      : isRec
       ? `<div class="hist-row"><span>Activity</span><span>${act.name ? esc(act.name) : "—"}</span></div>
          <div class="hist-row"><span>Duration</span><span>${hasDuration ? esc(act.duration)+" min" : "—"}</span></div>
          <div class="hist-row"><span>Intensity</span><span>${act.intensity ? esc(act.intensity) : "—"}</span></div>`
@@ -912,7 +940,7 @@ function weeklyCounts(){
   for(let i=TREND_WEEKS-1;i>=0;i--){
     const start = addDays(thisWeek, -7*i);
     const startKey = dateKey(start), endKey = dateKey(addDays(start, 7));
-    const count = allSessions.filter(s=>s.dateKey>=startKey && s.dateKey<endKey).length;
+    const count = allSessions.filter(s=>s.dateKey>=startKey && s.dateKey<endKey && s.sessionType!=="rest").length;
     weeks.push({start, count, current: i===0});
   }
   return weeks;
@@ -1259,6 +1287,7 @@ async function init(){
       if(e.target.matches('input[type="checkbox"]')) haptic();
     });
   });
+  document.getElementById("workoutSelect").addEventListener("change", (e)=>selectWorkout(e.target.value));
   document.getElementById("prevWeek").addEventListener("click", ()=>shiftWeek(-1));
   document.getElementById("nextWeek").addEventListener("click", ()=>shiftWeek(1));
   document.getElementById("exportBtn").addEventListener("click", exportFile);

@@ -18,7 +18,7 @@ const item = (page, id) => page.locator(".exercise-item", { has: page.locator(`.
 
 test("tapping an exercise shows its diagram and a short explanation; tapping again hides it", async ({ page }) => {
   const errors = await open(page);
-  await page.locator('.workout-pill[data-type="monday"]').click();
+  await page.locator("#workoutSelect").selectOption("monday");
   const it = item(page, "m6");
   await expect(it.locator(".howto")).toBeHidden();
   await it.locator(".exercise-info").click();
@@ -58,7 +58,7 @@ test("keyboard: Enter toggles the panel", async ({ page }) => {
 test("every exercise in every workout has a diagram and explanation", async ({ page }) => {
   const errors = await open(page);
   for (const type of ["monday", "wednesday", "weekend", "recovery", "kettlebell"]) {
-    await page.locator(`.workout-pill[data-type="${type}"]`).click();
+    await page.locator("#workoutSelect").selectOption(type);
     const items = page.locator(".exercise-item");
     const n = await items.count();
     expect(n).toBeGreaterThan(0);
@@ -71,7 +71,7 @@ test("every exercise in every workout has a diagram and explanation", async ({ p
     }
   }
   // Aliased names reuse the right guide.
-  await page.locator('.workout-pill[data-type="weekend"]').click();
+  await page.locator("#workoutSelect").selectOption("weekend");
   await item(page, "s3").locator(".exercise-info").click();
   await expect(item(page, "s3").locator(".howto-works")).toHaveText("Works: Lats, upper back, biceps");
   expect(errors).toEqual([]);

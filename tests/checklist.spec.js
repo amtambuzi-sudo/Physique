@@ -57,7 +57,7 @@ test("rows show the program's guide load; Hardcore adds a set and says go heavie
   await expect(target(page, "m1")).toHaveText("4 × 10 · go heavier: 30 lb");
   await expect(target(page, "m1").locator(".hc-hint")).toHaveCount(1);
 
-  await page.locator('.workout-pill[data-type="wednesday"]').click();
+  await page.locator("#workoutSelect").selectOption("wednesday");
   await expect(target(page, "w8")).toHaveText("3 × 30–45 sec"); // timed: no load
   await page.locator("#hardcoreToggle").click();
   await expect(target(page, "w8")).toHaveText("4 × 30–45 sec");

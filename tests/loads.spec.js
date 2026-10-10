@@ -25,7 +25,7 @@ test("every suggested weight, normal and Hardcore, exists for its equipment", as
   expect(program).toHaveLength(32);
 
   for (const type of ["monday", "wednesday", "weekend", "recovery", "kettlebell"]) {
-    await page.locator(`.workout-pill[data-type="${type}"]`).click();
+    await page.locator("#workoutSelect").selectOption(type);
     for (const hardcore of [false, true]) {
       const toggle = page.locator("#hardcoreToggle");
       if (hardcore !== (await toggle.evaluate((el) => el.classList.contains("on")))) await toggle.click();
@@ -58,10 +58,10 @@ test("every suggested weight, normal and Hardcore, exists for its equipment", as
 test("Hardcore adds a set to sets×reps only; timed flows keep their length", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-07T10:00:00"));
   await page.goto(APP_URL);
-  await page.locator('.workout-pill[data-type="recovery"]').click();
+  await page.locator("#workoutSelect").selectOption("recovery");
   await page.locator("#hardcoreToggle").click();
   await expect(page.locator(".exercise-target")).toHaveText(["10 min"]);
-  await page.locator('.workout-pill[data-type="kettlebell"]').click();
+  await page.locator("#workoutSelect").selectOption("kettlebell");
   await page.locator("#hardcoreToggle").click();
   const t = (id) => page.locator(".exercise-item", { has: page.locator(`.done-check[data-id="${id}"]`) }).locator(".exercise-target");
   await expect(t("k7")).toHaveText("3 × 10/direction · go heavier: 15 lb");

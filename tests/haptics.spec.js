@@ -42,7 +42,7 @@ test("buzzes on check-offs, save, day/workout/week switches and Hardcore", async
   await page.locator("#cardioCheck").check(); await expectBuzz();
   await page.locator("#hardcoreToggle").click(); await expectBuzz();
   await page.locator('.week-pill[data-date="2026-10-05"]').click(); await expectBuzz();
-  await page.locator('.workout-pill[data-type="recreational"]').click(); await expectBuzz();
+  await page.locator("#workoutSelect").selectOption("recreational"); await expectBuzz();
   await page.locator("#recCompleted").check(); await expectBuzz();
   await page.locator("#prevWeek").click(); await expectBuzz();
   await page.locator("#saveBtn").click(); await expectBuzz();

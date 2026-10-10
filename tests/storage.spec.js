@@ -20,7 +20,6 @@ async function openApp(page, { beforeLoad } = {}) {
 }
 
 const day = (page, dk) => page.locator(`.week-pill[data-date="${dk}"]`);
-const workout = (page, type) => page.locator(`.workout-pill[data-type="${type}"]`);
 const tab = (page, name) => page.locator(`.tab[data-tab="${name}"]`);
 const readKey = (page, key) => page.evaluate((k) => localStorage.getItem(k), key);
 const sessionKeys = (page) => page.evaluate(() =>
@@ -65,7 +64,7 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
   await expect(page.locator(".week-pill .dom")).toHaveText(["4", "5", "6", "7", "8", "9", "10"]);
   await expect(day(page, "2026-10-07")).toHaveClass(/selected/);
   await expect(day(page, "2026-10-07")).toHaveClass(/is-today/);
-  await expect(workout(page, "wednesday")).toHaveClass(/selected/);
+  await expect(page.locator("#workoutSelect")).toHaveValue("wednesday");
   await expect(page.locator("#loggingForLabel")).toHaveText(/^Full Body B · today, Wednesday, Oct 7$/);
   await expect(page.locator(".exercise-row")).toHaveCount(8);
 
@@ -97,7 +96,7 @@ test("empty days pre-select their scheduled workout", async ({ page }) => {
   for (const [dk, type] of Object.entries(expected)) {
     await day(page, dk).click();
     await expect(day(page, dk)).toHaveClass(/selected/);
-    await expect(workout(page, type)).toHaveClass(/selected/);
+    await expect(page.locator("#workoutSelect")).toHaveValue(type);
   }
   expect(errors).toEqual([]);
 });
@@ -125,7 +124,7 @@ test("saves to the tapped date with the original key + data shape, survives relo
   await expect(day(page, "2026-10-05")).toHaveClass(/done/);
   await expect(day(page, "2026-10-07")).not.toHaveClass(/done/);
   await day(page, "2026-10-05").click();
-  await expect(workout(page, "monday")).toHaveText("Body A ✓");
+  await expect(page.locator('#workoutSelect option[value="monday"]')).toHaveText("Full Body A ✓");
   await expect(page.locator('.done-check[data-id="m1"]')).toBeChecked();
   await expect(page.locator('.done-check[data-id="m2"]')).not.toBeChecked();
   await expect(page.locator("#cardioCheck")).toBeChecked();
@@ -144,7 +143,7 @@ test("both weekend days count toward the same Sunday-start week", async ({ page 
   const errors = await openApp(page);
   for (const dk of ["2026-10-04", "2026-10-10"]) {
     await day(page, dk).click();
-    await expect(workout(page, "weekend")).toHaveClass(/selected/);
+    await expect(page.locator("#workoutSelect")).toHaveValue("weekend");
     await checkOff(page, ["s7"]);
     await save(page);
   }
@@ -181,11 +180,11 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
     { type: "kettlebell", ids: ["k2"] },
   ];
   for (const c of cases) {
-    await workout(page, c.type).click();
+    await page.locator("#workoutSelect").selectOption(c.type);
     await checkOff(page, c.ids);
     await save(page);
   }
-  await workout(page, "recreational").click();
+  await page.locator("#workoutSelect").selectOption("recreational");
   await page.locator("#recActivity").fill("Pickup basketball");
   await page.locator("#recDuration").fill("75");
   await page.locator("#recIntensity").selectOption("hard");
@@ -202,12 +201,12 @@ test("every workout can be logged on one day and reloads", async ({ page }) => {
   });
 
   await page.reload();
-  await expect(page.locator(".workout-pill.logged")).toHaveCount(6);
+  await expect(page.locator("#workoutSelect option", { hasText: "✓" })).toHaveCount(6);
   for (const c of cases) {
-    await workout(page, c.type).click();
+    await page.locator("#workoutSelect").selectOption(c.type);
     for (const id of c.ids) await expect(page.locator(`.done-check[data-id="${id}"]`)).toBeChecked();
   }
-  await workout(page, "recreational").click();
+  await page.locator("#workoutSelect").selectOption("recreational");
   await expect(page.locator("#recActivity")).toHaveValue("Pickup basketball");
   await expect(page.locator("#recDuration")).toHaveValue("75");
   await expect(page.locator("#recIntensity")).toHaveValue("hard");
@@ -243,21 +242,21 @@ test("no state bleeds between days or workouts", async ({ page }) => {
   await expect(page.locator("#hardcoreToggle")).toHaveClass(/on/);
   await page.locator('.done-check[data-id="m1"]').check(); // unsaved
 
-  await workout(page, "wednesday").click();
+  await page.locator("#workoutSelect").selectOption("wednesday");
   await expect(page.locator("#hardcoreToggle")).not.toHaveClass(/on/);
   await expect(page.locator(".hc-badge")).toHaveCount(0);
 
-  await workout(page, "monday").click();
+  await page.locator("#workoutSelect").selectOption("monday");
   await page.locator("#hardcoreToggle").click();
   await day(page, "2026-10-06").click();
   await expect(page.locator("#hardcoreToggle")).not.toHaveClass(/on/);
   await expect(page.locator('.done-check[data-id="m1"]')).not.toBeChecked();
 
   // Freeform mode hides the toggle + cardio card; a lift workout must restore them.
-  await workout(page, "recreational").click();
+  await page.locator("#workoutSelect").selectOption("recreational");
   await expect(page.locator("#hardcoreToggle")).toBeHidden();
   await expect(page.locator("#cardioCard")).toBeHidden();
-  await workout(page, "kettlebell").click();
+  await page.locator("#workoutSelect").selectOption("kettlebell");
   await expect(page.locator("#hardcoreToggle")).toBeVisible();
   await expect(page.locator("#cardioCard")).toBeVisible();
   await expect(page.locator(".exercise-row")).toHaveCount(9);
@@ -288,7 +287,7 @@ test("reads data in the original shape; a logged day opens on its workout", asyn
   await expect(page.locator('.comp-row[data-id="m1"] .comp-count')).toHaveText("2/2");
   // Tuesday is normally Body A, but it has a Play session logged, so it opens on that.
   await day(page, "2026-10-06").click();
-  await expect(workout(page, "recreational")).toHaveClass(/selected/);
+  await expect(page.locator("#workoutSelect")).toHaveValue("recreational");
   await expect(page.locator("#recActivity")).toHaveValue("Tennis");
   expect(errors).toEqual([]);
 });
@@ -296,12 +295,12 @@ test("reads data in the original shape; a logged day opens on its workout", asyn
 test("user text is escaped and a blank duration never shows 'null min'", async ({ page }) => {
   const errors = await openApp(page);
   const name = `Tom's "5v5" <b>ball</b> & <img src=x onerror="window.__pwned=1">`;
-  await workout(page, "recreational").click();
+  await page.locator("#workoutSelect").selectOption("recreational");
   await page.locator("#recActivity").fill(name);
   await save(page);
 
   await page.reload();
-  await workout(page, "recreational").click();
+  await page.locator("#workoutSelect").selectOption("recreational");
   await expect(page.locator("#recActivity")).toHaveValue(name);
   await tab(page, "history").click();
   await expect(page.locator(".hist-summary")).toHaveText("moderate—");
@@ -335,7 +334,7 @@ test("export file then import into an empty browser round-trips everything", asy
   await day(page, "2026-10-05").click();
   await checkOff(page, ["m1"]);
   await save(page);
-  await workout(page, "recreational").click();
+  await page.locator("#workoutSelect").selectOption("recreational");
   await page.locator("#recActivity").fill("Tennis");
   await save(page);
 
