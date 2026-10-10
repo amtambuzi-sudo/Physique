@@ -20,7 +20,9 @@ async function openApp(page, { beforeLoad } = {}) {
 }
 
 const day = (page, dk) => page.locator(`.week-pill[data-date="${dk}"]`);
-const tab = (page, name) => page.locator(`.tab[data-tab="${name}"]`);
+const tab = (page, name) => (name === "history" || name === "progress")
+  ? { click: async () => { await page.locator("#meBtn").click(); await page.locator(`.subtab[data-sub="${name}"]`).click(); } }
+  : page.locator(`nav .tab[data-tab="${name}"]`);
 const readKey = (page, key) => page.evaluate((k) => localStorage.getItem(k), key);
 const sessionKeys = (page) => page.evaluate(() =>
   Object.keys(localStorage).filter((k) => k.startsWith("session:")).sort());
@@ -74,7 +76,7 @@ test("renders a Sunday-start daily strip, every tab, no errors", async ({ page }
   await tab(page, "guide").click();
   await expect(page.locator("#workoutSelect")).toBeHidden();
 
-  await expect(page.locator(".tab")).toHaveText(["Today", "Guide", "Log", "Trend"]); // no Next Wk
+  await expect(page.locator("nav .tab")).toHaveText(["Today", "Guide"]); // Log + Trend live under Me
   await tab(page, "guide").click();
   await expect(page.locator(".guide-row")).toHaveCount(26);
   await tab(page, "history").click();

@@ -85,7 +85,7 @@ test("re-saving an old day keeps the weights it was logged with", async ({ page 
 
 test("Trend: sessions per week over the last 8 Sunday-start weeks", async ({ page }) => {
   const errors = await open(page);
-  await page.locator('.tab[data-tab="progress"]').click();
+  await page.locator("#meBtn").click(); await page.locator('.subtab[data-sub="progress"]').click();
   // Bars only for weeks with sessions: this week (2), Sep 27, Sep 20, Sep 13, Sep 6 (1 each).
   await expect(page.locator("#weeklyChart svg path")).toHaveCount(5);
   await expect(page.locator("#weeklyChart svg text", { hasText: "This wk" })).toHaveCount(1);
@@ -105,7 +105,7 @@ test("Trend: sessions per week over the last 8 Sunday-start weeks", async ({ pag
 
 test("Trend: completion counts the last 4 logged times, skips freeform modes", async ({ page }) => {
   const errors = await open(page);
-  await page.locator('.tab[data-tab="progress"]').click();
+  await page.locator("#meBtn").click(); await page.locator('.subtab[data-sub="progress"]').click();
   // m1: Oct 5 ✓, Sep 28 ✓, Sep 21 ✓, Sep 14 ✗  (Sep 7 / Aug 2 fall outside the window)
   await expect(page.locator('.comp-row[data-id="m1"] .comp-count')).toHaveText("3/4");
   await expect(page.locator('.comp-row[data-id="m1"] .comp-meter span')).toHaveAttribute("style", "width:75%");

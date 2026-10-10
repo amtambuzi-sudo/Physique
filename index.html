@@ -30,7 +30,14 @@
     padding:20px 18px 12px; position:sticky; top:0; background:var(--bg); z-index:10;
     border-bottom:1px solid var(--border);
   }
-  .title-row{display:flex; align-items:baseline; justify-content:space-between;}
+  .title-row{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .me-btn{
+    display:inline-flex; align-items:center; gap:5px; flex-shrink:0;
+    background:var(--panel); border:1px solid var(--border); border-radius:999px;
+    padding:4px 11px 4px 7px; color:var(--text-muted); font-size:12.5px; font-weight:600; cursor:pointer;
+  }
+  .me-btn svg{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round;}
+  .me-btn.active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
   h1{font-size:19px; margin:0; font-weight:600; letter-spacing:-0.01em;}
   .date-sub{font-size:13px; color:var(--text-muted); margin-top:2px;}
   .week-nav{display:flex; align-items:stretch; gap:4px; margin-top:14px;}
@@ -60,12 +67,13 @@
   #workoutSelect option{color:var(--text); background:var(--panel); font-weight:400;}
 
   nav{display:flex; gap:5px; padding:14px 14px 0;}
-  .tab{
+  .subnav{display:flex; gap:5px; margin-bottom:14px;}
+  .tab, .subtab{
     flex:1; text-align:center; padding:8px 0; border-radius:9px;
     font-size:11.5px; color:var(--text-muted); background:transparent;
     border:1px solid var(--border); cursor:pointer; white-space:nowrap;
   }
-  .tab.active{background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
+  .tab.active, .subtab.active{background:var(--accent-soft); color:var(--accent); border-color:var(--accent);}
 
   main{padding:16px 18px;}
   .card{
@@ -232,6 +240,10 @@
 <header>
   <div class="title-row">
     <h1>Training Log</h1>
+    <button class="me-btn" id="meBtn" aria-label="Me: Trend and Log" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.6-4 3.7-6.5 7.5-6.5s6.9 2.5 7.5 6.5"/></svg>
+      <span>Me</span>
+    </button>
     <div class="date-sub" id="todayLabel"></div>
   </div>
   <div class="week-nav">
@@ -244,8 +256,6 @@
 <nav>
   <div class="tab active" data-tab="today">Today</div>
   <div class="tab" data-tab="guide">Guide</div>
-  <div class="tab" data-tab="history">Log</div>
-  <div class="tab" data-tab="progress">Trend</div>
 </nav>
 
 <main>
@@ -269,24 +279,30 @@
     <div id="guideWrap"></div>
   </section>
 
-  <section id="tab-history" style="display:none;">
-    <div class="card" id="historyCard"></div>
-    <div class="card" id="backupCard">
-      <div class="section-label">Backup</div>
-      <div class="backup-actions">
-        <button class="ghost-btn" id="exportBtn">Export file</button>
-        <button class="ghost-btn" id="copyBtn">Copy JSON</button>
-        <button class="ghost-btn" id="importBtn">Import file</button>
-      </div>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
-      <textarea class="backup-text" id="backupText" rows="3" placeholder="…or paste a backup here"></textarea>
-      <button class="ghost-btn" id="importPasteBtn">Import pasted JSON</button>
-      <div class="saved-note" id="backupNote"></div>
+  <section id="tab-me" style="display:none;">
+    <div class="subnav">
+      <div class="subtab" data-sub="progress">Trend</div>
+      <div class="subtab" data-sub="history">Log</div>
     </div>
-  </section>
+    <section id="tab-history" style="display:none;">
+      <div class="card" id="historyCard"></div>
+      <div class="card" id="backupCard">
+        <div class="section-label">Backup</div>
+        <div class="backup-actions">
+          <button class="ghost-btn" id="exportBtn">Export file</button>
+          <button class="ghost-btn" id="copyBtn">Copy JSON</button>
+          <button class="ghost-btn" id="importBtn">Import file</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <textarea class="backup-text" id="backupText" rows="3" placeholder="…or paste a backup here"></textarea>
+        <button class="ghost-btn" id="importPasteBtn">Import pasted JSON</button>
+        <div class="saved-note" id="backupNote"></div>
+      </div>
+    </section>
 
-  <section id="tab-progress" style="display:none;">
-    <div id="trendWrap"></div>
+    <section id="tab-progress" style="display:none;">
+      <div id="trendWrap"></div>
+    </section>
   </section>
 </main>
 
@@ -1137,14 +1153,29 @@ function renderGuide(){
 }
 
 // ---------- Tabs ----------
+// Main views: Today, Guide (nav row) and Me (person button), which holds Trend
+// and Log behind its own sub-buttons. "history"/"progress" open Me on that page.
+let meSub = "progress";
 function switchTab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
-  ["today","guide","history","progress"].forEach(n=>{
+  if(name==="history" || name==="progress"){ meSub = name; name = "me"; }
+  document.querySelectorAll("nav .tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
+  const meBtn = document.getElementById("meBtn");
+  meBtn.classList.toggle("active", name==="me");
+  meBtn.setAttribute("aria-pressed", String(name==="me"));
+  ["today","guide","me"].forEach(n=>{
     document.getElementById(`tab-${n}`).style.display = (n===name) ? "block" : "none";
   });
+  document.querySelectorAll(".subtab").forEach(t=>t.classList.toggle("active", t.dataset.sub===meSub));
+  ["history","progress"].forEach(n=>{
+    document.getElementById(`tab-${n}`).style.display = (n===meSub) ? "block" : "none";
+  });
 }
-document.querySelectorAll(".tab").forEach(tab=>{
+document.querySelectorAll("nav .tab").forEach(tab=>{
   tab.addEventListener("click", ()=>switchTab(tab.dataset.tab));
+});
+document.getElementById("meBtn").addEventListener("click", ()=>switchTab("me"));
+document.querySelectorAll(".subtab").forEach(sub=>{
+  sub.addEventListener("click", ()=>switchTab(sub.dataset.sub));
 });
 
 // ---------- Init ----------

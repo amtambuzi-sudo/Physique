@@ -56,9 +56,9 @@ test("Rest day: no exercises, saves, marks the day, isn't a training session", a
   await expect(select(page).locator('option[value="rest"]')).toHaveText("Rest day ✓");
   await expect(page.locator("#savedNote")).toHaveText("Rest day logged ✓");
 
-  await page.locator('.tab[data-tab="history"]').click();
+  await page.locator("#meBtn").click(); await page.locator('.subtab[data-sub="history"]').click();
   await expect(page.locator(".hist-summary")).toHaveText("Rest ✓");
-  await page.locator('.tab[data-tab="progress"]').click();
+  await page.locator("#meBtn").click(); await page.locator('.subtab[data-sub="progress"]').click();
   await page.locator(".trend-table summary").click();
   await expect(page.locator(".trend-table tr").first()).toHaveText("This week0");
 
