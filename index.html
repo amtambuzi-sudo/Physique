@@ -305,13 +305,13 @@ const PROGRAM = {
     label: "Full Body A",
     dayName: "Monday",
     exercises: [
-      {id:"m1", name:"Goblet Squat (DB)", reps:"3 × 10", start:25, unit:"lb"},
-      {id:"m2", name:"Chest Press (machine)", reps:"3 × 10", start:40, unit:"lb"},
-      {id:"m3", name:"Lat Pulldown (machine)", reps:"3 × 10", start:45, unit:"lb"},
-      {id:"m4", name:"Leg Extension", reps:"3 × 12", start:40, unit:"lb"},
-      {id:"m5", name:"Leg Curl (reverse leg extension)", reps:"3 × 12", start:35, unit:"lb"},
-      {id:"m6", name:"DB Hip Thrust / Glute Bridge", reps:"3 × 12", start:20, unit:"lb"},
-      {id:"m7", name:"DB Romanian Deadlift", reps:"3 × 10", start:25, unit:"lb"}
+      {id:"m1", name:"Goblet Squat (DB)", reps:"3 × 10", start:25, unit:"lb", equip:"db"},
+      {id:"m2", name:"Chest Press (machine)", reps:"3 × 10", start:40, unit:"lb", equip:"machine"},
+      {id:"m3", name:"Lat Pulldown (machine)", reps:"3 × 10", start:45, unit:"lb", equip:"machine"},
+      {id:"m4", name:"Leg Extension", reps:"3 × 12", start:40, unit:"lb", equip:"machine"},
+      {id:"m5", name:"Leg Curl (reverse leg extension)", reps:"3 × 12", start:35, unit:"lb", equip:"machine"},
+      {id:"m6", name:"DB Hip Thrust / Glute Bridge", reps:"3 × 12", start:20, unit:"lb", equip:"db"},
+      {id:"m7", name:"DB Romanian Deadlift", reps:"3 × 10", start:25, unit:"lb", equip:"db"}
     ],
     cardio: {name:"Treadmill HIIT finisher", detail:"6–8 rounds: 30 sec fast/incline, 90 sec walk recovery (~12 min total)"}
   },
@@ -319,14 +319,14 @@ const PROGRAM = {
     label: "Full Body B",
     dayName: "Wednesday",
     exercises: [
-      {id:"w1", name:"DB Reverse Lunge", reps:"3 × 10/leg", start:20, unit:"lb"},
-      {id:"w2", name:"DB Shoulder Press", reps:"3 × 10", start:15, unit:"lb"},
-      {id:"w3", name:"Single-Arm Cable Row", reps:"3 × 10/side", start:30, unit:"lb"},
-      {id:"w9", name:"Cable Face Pull", reps:"3 × 12–15", start:20, unit:"lb"},
-      {id:"w6", name:"Cable Triceps Pushdown", reps:"3 × 12", start:25, unit:"lb"},
-      {id:"w10", name:"DB Overhead Triceps Extension", reps:"2 × 12", start:15, unit:"lb"},
-      {id:"w7", name:"DB Bicep Curl", reps:"2 × 12", start:12, unit:"lb"},
-      {id:"w8", name:"Plank", reps:"3 × 30–45 sec", start:null, unit:"sec"}
+      {id:"w1", name:"DB Reverse Lunge", reps:"3 × 10/leg", start:20, unit:"lb", equip:"db"},
+      {id:"w2", name:"DB Shoulder Press", reps:"3 × 10", start:15, unit:"lb", equip:"db"},
+      {id:"w3", name:"Single-Arm Cable Row", reps:"3 × 10/side", start:30, unit:"lb", equip:"cable"},
+      {id:"w9", name:"Cable Face Pull", reps:"3 × 12–15", start:20, unit:"lb", equip:"cable"},
+      {id:"w6", name:"Cable Triceps Pushdown", reps:"3 × 12", start:25, unit:"lb", equip:"cable"},
+      {id:"w10", name:"DB Overhead Triceps Extension", reps:"2 × 12", start:15, unit:"lb", equip:"db"},
+      {id:"w7", name:"DB Bicep Curl", reps:"2 × 12", start:12, unit:"lb", equip:"db"},
+      {id:"w8", name:"Plank", reps:"3 × 30–45 sec", start:null, unit:"sec", equip:"bodyweight"}
     ],
     cardio: {name:"Steady-state bike", detail:"15–20 min, level 1–3 — your comfort zone, build time before intensity"}
   },
@@ -334,13 +334,13 @@ const PROGRAM = {
     label: "Full Body C",
     dayName: "Weekend (Sat or Sun)",
     exercises: [
-      {id:"s1", name:"DB Romanian / Sumo Deadlift", reps:"3 × 10", start:30, unit:"lb"},
-      {id:"s2", name:"Chest Press (machine)", reps:"3 × 10", start:40, unit:"lb"},
-      {id:"s3", name:"Lat Pulldown, wide grip", reps:"3 × 10", start:45, unit:"lb"},
-      {id:"s4", name:"Leg Extension", reps:"3 × 12", start:40, unit:"lb"},
-      {id:"s5", name:"Leg Curl (reverse leg extension)", reps:"3 × 12", start:35, unit:"lb"},
-      {id:"s6", name:"DB Lateral Raise", reps:"2 × 15", start:8, unit:"lb"},
-      {id:"s7", name:"Cable Glute Kickback", reps:"3 × 12/side", start:15, unit:"lb"}
+      {id:"s1", name:"DB Romanian / Sumo Deadlift", reps:"3 × 10", start:30, unit:"lb", equip:"db"},
+      {id:"s2", name:"Chest Press (machine)", reps:"3 × 10", start:40, unit:"lb", equip:"machine"},
+      {id:"s3", name:"Lat Pulldown, wide grip", reps:"3 × 10", start:45, unit:"lb", equip:"machine"},
+      {id:"s4", name:"Leg Extension", reps:"3 × 12", start:40, unit:"lb", equip:"machine"},
+      {id:"s5", name:"Leg Curl (reverse leg extension)", reps:"3 × 12", start:35, unit:"lb", equip:"machine"},
+      {id:"s6", name:"DB Lateral Raise", reps:"2 × 15", start:8, unit:"lb", equip:"db"},
+      {id:"s7", name:"Cable Glute Kickback", reps:"3 × 12/side", start:15, unit:"lb", equip:"cable"}
     ],
     cardio: {name:"Run/walk intervals (treadmill)", detail:"Start 1 min run / 1 min walk × 8 (16 min). Add a run interval every 1–2 weeks as it feels manageable."}
   },
@@ -348,7 +348,7 @@ const PROGRAM = {
     label: "Active Recovery",
     dayName: "Flex day",
     exercises: [
-      {id:"r1", name:"Mobility / stretch flow", reps:"10 min", start:null, unit:"sec"}
+      {id:"r1", name:"Mobility / stretch flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
     ],
     cardio: {name:"Easy bike or walk", detail:"20–30 min, level 1 — easy conversational pace, no intensity"}
   },
@@ -356,15 +356,15 @@ const PROGRAM = {
     label: "Kettlebell + Mat",
     dayName: "Kettlebell Gym",
     exercises: [
-      {id:"k1", name:"KB Goblet Squat", reps:"3 × 12", start:25, unit:"lb"},
-      {id:"k2", name:"KB Two-Hand Swing", reps:"3 × 15", start:25, unit:"lb"},
-      {id:"k3", name:"KB Single-Arm Row", reps:"3 × 10/side", start:20, unit:"lb"},
-      {id:"k4", name:"KB Single-Arm Overhead Press", reps:"3 × 8/side", start:15, unit:"lb"},
-      {id:"k5", name:"KB Romanian Deadlift", reps:"3 × 10", start:25, unit:"lb"},
-      {id:"k6", name:"KB Reverse Lunge", reps:"3 × 10/leg", start:20, unit:"lb"},
-      {id:"k7", name:"KB Halo", reps:"2 × 10/direction", start:12, unit:"lb"},
-      {id:"k8", name:"Plank", reps:"3 × 30–45 sec", start:null, unit:"sec"},
-      {id:"k9", name:"Mat stretch / mobility flow", reps:"10 min", start:null, unit:"sec"}
+      {id:"k1", name:"KB Goblet Squat", reps:"3 × 12", start:25, unit:"lb", equip:"kb"},
+      {id:"k2", name:"KB Two-Hand Swing", reps:"3 × 15", start:25, unit:"lb", equip:"kb"},
+      {id:"k3", name:"KB Single-Arm Row", reps:"3 × 10/side", start:20, unit:"lb", equip:"kb"},
+      {id:"k4", name:"KB Single-Arm Overhead Press", reps:"3 × 8/side", start:15, unit:"lb", equip:"kb"},
+      {id:"k5", name:"KB Romanian Deadlift", reps:"3 × 10", start:25, unit:"lb", equip:"kb"},
+      {id:"k6", name:"KB Reverse Lunge", reps:"3 × 10/leg", start:20, unit:"lb", equip:"kb"},
+      {id:"k7", name:"KB Halo", reps:"2 × 10/direction", start:10, unit:"lb", equip:"kb"},
+      {id:"k8", name:"Plank", reps:"3 × 30–45 sec", start:null, unit:"sec", equip:"bodyweight"},
+      {id:"k9", name:"Mat stretch / mobility flow", reps:"10 min", start:null, unit:"sec", equip:"bodyweight"}
     ],
     cardio: {name:"Optional finisher", detail:"5–10 min light cardio if the gym has it, or skip — the swings and circuit pace already cover conditioning."}
   },
@@ -624,14 +624,23 @@ function existingSessionFor(type){
   return allSessions.find(s=>s.dateKey===k && s.sessionType===type);
 }
 
+// Hardcore adds a set to "N × reps" prescriptions; timed flows ("10 min") stay as is.
 function bumpReps(reps){
-  return reps.replace(/^(\d+)/, m => (parseInt(m,10)+1));
+  return reps.replace(/^(\d+)(?=\s*×)/, m => (parseInt(m,10)+1));
 }
-function bumpWeight(val){
-  if(val===null || val===undefined || val==="") return val;
-  const n = Number(val);
-  if(isNaN(n)) return val;
-  return Math.round((n*1.1)/2.5)*2.5;
+
+// Weights you can actually pick up, per equipment type (lb).
+const LOAD_STEPS = {
+  db: [2,3,5,8,10,12,15, ...Array.from({length:17}, (_,i)=>20+i*5)],   // 20 … 100 by 5
+  kb: [5,10,15,20,25,30,35,40,45,50,53,60,70,80],
+  machine: Array.from({length:60}, (_,i)=>5+i*5),                      // stack pins, 5 … 300
+  cable: Array.from({length:40}, (_,i)=>5+i*5)                         // 5 … 200
+};
+// Hardcore "go heavier": the next real weight up for that equipment.
+function nextLoad(ex){
+  const steps = LOAD_STEPS[ex.equip];
+  if(!steps || ex.start===null) return null;
+  return steps.find(w=>w > ex.start) ?? null;
 }
 
 function renderTodayForm(){
@@ -703,8 +712,9 @@ function renderTodayForm(){
     // Guide load from the program; Hardcore nudges it up instead of tracking weights.
     let loadHint = "";
     if(ex.start!==null && ex.unit!=="sec"){
-      loadHint = hardcoreMode
-        ? ` · <span class="hc-hint">go heavier: ~${bumpWeight(ex.start)} lb</span>`
+      const heavier = nextLoad(ex);
+      loadHint = hardcoreMode && heavier!==null
+        ? ` · <span class="hc-hint">go heavier: ${heavier} lb</span>`
         : ` · ~${ex.start} lb`;
     }
     const checked = prevLogged.completed ? "checked" : "";

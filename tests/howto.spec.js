@@ -83,6 +83,6 @@ test("Hardcore re-render keeps the panels working", async ({ page }) => {
   const it = item(page, "w2");
   await it.locator(".exercise-info").click();
   await expect(it.locator(".howto")).toBeVisible();
-  await expect(it.locator(".exercise-target")).toHaveText("4 × 10 · go heavier: ~17.5 lb");
+  await expect(it.locator(".exercise-target")).toHaveText("4 × 10 · go heavier: 20 lb");
   expect(errors).toEqual([]);
 });
